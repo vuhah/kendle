@@ -1,6 +1,6 @@
 """kendle init: a workspace from a clone or an existing checkout, never overwriting anything."""
 import os, subprocess, unittest
-from helpers import KENDLE, Workspace, sh, read
+from helpers import RUN, Workspace, sh, read
 
 
 class Init(unittest.TestCase):
@@ -14,7 +14,7 @@ class Init(unittest.TestCase):
 
     def init(self, *args, cwd=None):
         env = {k: v for k, v in os.environ.items() if not k.startswith("KENDLE_")}
-        return subprocess.run([KENDLE, "init", *args], cwd=cwd or self.ws, capture_output=True, text=True, env=env)
+        return subprocess.run([*RUN, "init", *args], cwd=cwd or self.ws, capture_output=True, text=True, env=env)
 
     def test_clone_writes_everything_and_finds_the_base(self):
         r = self.init("--clone", self.w.origin)
@@ -57,7 +57,7 @@ class Init(unittest.TestCase):
         self.assertEqual(self.init("--clone", self.w.origin).returncode, 0)
         env = {k: v for k, v in os.environ.items() if not k.startswith("KENDLE_")}
         env.update(KENDLE_STATE=os.path.join(self.w.root, "state2"), KENDLE_SOCKET=self.w.socket)
-        r = subprocess.run([KENDLE, "new", "one"], cwd=self.ws, env=env, capture_output=True, text=True)
+        r = subprocess.run([*RUN, "new", "one"], cwd=self.ws, env=env, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
         feature = os.path.join(self.ws, "one")
         self.assertEqual(os.path.realpath(os.path.join(feature, "agent_docs")), os.path.join(self.ws, "agent_docs"))

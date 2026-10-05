@@ -80,12 +80,14 @@ class Loader(KendleTest):
 
     def test_syntax_error_names_file_and_line(self):
         self.w.write_toml('[repo]\npath = "app\n')
-        self.assertIn("kendle.toml: line 2: unterminated string", self.w.kendle("list", check=False).stderr)
+        err = self.w.kendle("list", check=False).stderr    # kendle's reader or tomllib (3.11+): their wording differs
+        self.assertIn("kendle.toml", err)
+        self.assertRegex(err, r"line 2\b")
 
     def test_no_workspace(self):
         env = self.w.env()
         del env["KENDLE_WORKSPACE"]
-        r = subprocess.run([os.path.join(ROOT, "bin", "kendle"), "list"], cwd=self.w.root, env=env,
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "kendle"), "list"], cwd=self.w.root, env=env,
                            capture_output=True, text=True)
         self.assertIn("no workspace here", r.stderr)
 

@@ -8,8 +8,9 @@ import json, os, shutil, subprocess, sys, tempfile, textwrap, time, unittest, uu
 
 ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 KENDLE = os.path.join(ROOT, "bin", "kendle")
-FAKEBIN = os.path.join(ROOT, "tests", "fakebin")
 PY = sys.executable
+RUN = [PY, KENDLE]           # kendle on the Python running the tests, not whatever python3 is on PATH
+FAKEBIN = os.path.join(ROOT, "tests", "fakebin")
 
 
 def sh(*args, cwd=None, check=True, env=None):
@@ -102,7 +103,7 @@ class Workspace:
         return env
 
     def kendle(self, *args, cwd=None, check=True, **env):
-        return sh(KENDLE, *args, cwd=cwd or self.ws, check=check, env=self.env(**env))
+        return sh(*RUN, *args, cwd=cwd or self.ws, check=check, env=self.env(**env))
 
     def py(self, code, cwd=None, check=True, **env):
         """Run a snippet with `from kendle import ...` available; returns its stdout, or its JSON."""
