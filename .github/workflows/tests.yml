@@ -40,6 +40,12 @@ jobs:
           git config --global init.defaultBranch main
 
       - name: tests
+        shell: bash
         run: |
           $PY --version
-          $PY -m unittest discover -s tests -v
+          set +e
+          $PY -m unittest discover -s tests -v 2>&1 | tee test-output.txt
+          code=${PIPESTATUS[0]}
+          # each failing test becomes an annotation: readable on the commit page without opening the log
+          [ "$code" -eq 0 ] || $PY .github/annotate.py test-output.txt
+          exit $code
