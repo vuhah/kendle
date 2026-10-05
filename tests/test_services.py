@@ -1,6 +1,6 @@
 """kendle stack / kendle services: real processes on free ports, two stacks side by side."""
 import json, os, shutil, socket, subprocess, sys, time, unittest
-from helpers import KendleTest, read, wait_for
+from helpers import FAKEBIN, KendleTest, read, wait_for
 
 
 def free_port():
@@ -27,6 +27,7 @@ def answers(port):
 
 
 WEB, DB = free_port(), free_port()
+LISTEN = os.path.join(FAKEBIN, "listen")
 
 
 class Stack(KendleTest):
@@ -35,7 +36,7 @@ class Stack(KendleTest):
         app = "web"
 
         [services.web]
-        run = "exec {sys.executable} -m http.server {{port}} --bind 127.0.0.1"
+        run = "exec {sys.executable} {LISTEN} {{port}}"
         port = {WEB}
         watch = ["web/"]
         watch_names = ["server.py"]
@@ -78,7 +79,7 @@ class Stack(KendleTest):
     def test_a_port_held_by_someone_else_is_refused_and_never_killed(self):
         errors = os.path.join(self.w.root, "other-server.log")
         with open(errors, "w") as log:
-            other = subprocess.Popen([sys.executable, "-m", "http.server", str(WEB), "--bind", "127.0.0.1"],
+            other = subprocess.Popen([sys.executable, LISTEN, str(WEB)],
                                      stdout=log, stderr=subprocess.STDOUT)
         try:
             up = wait_for(lambda: answers(WEB) or other.poll() is not None, timeout=30)

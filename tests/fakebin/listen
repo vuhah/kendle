@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+"""A stand-in service for tests: listens on 127.0.0.1:<port> at once and accepts every connection.
+(python -m http.server looks up its own host name before it listens, which can stall on CI.)"""
+import socket, sys
+
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", int(sys.argv[1])))
+s.listen(16)
+print("listening on", sys.argv[1], flush=True)
+while True:
+    conn, _ = s.accept()
+    conn.close()
