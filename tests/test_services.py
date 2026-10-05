@@ -76,10 +76,14 @@ class Stack(KendleTest):
         self.assertIn("stopped by kendle stack", read(os.path.join(self.w.state, "stack", "one", "web.log")))
 
     def test_a_port_held_by_someone_else_is_refused_and_never_killed(self):
-        other = subprocess.Popen([sys.executable, "-m", "http.server", str(WEB), "--bind", "127.0.0.1"],
-                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        errors = os.path.join(self.w.root, "other-server.log")
+        with open(errors, "w") as log:
+            other = subprocess.Popen([sys.executable, "-m", "http.server", str(WEB), "--bind", "127.0.0.1"],
+                                     stdout=log, stderr=subprocess.STDOUT)
         try:
-            self.assertTrue(wait_for(lambda: answers(WEB)))
+            up = wait_for(lambda: answers(WEB) or other.poll() is not None, timeout=30)
+            self.assertTrue(up and other.poll() is None,
+                            f"the stand-in server did not start (exit {other.poll()}): {read(errors)[-800:]}")
             r = self.w.kendle("stack", "start", "web", "-f", "one", check=False)
             self.assertEqual(r.returncode, 1)
             self.assertIn(f"port {WEB} for web is held by pid {other.pid}", r.stderr)
