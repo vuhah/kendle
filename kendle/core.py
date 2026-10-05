@@ -544,8 +544,13 @@ def manager_note(f):
 def lean():
     """Flags for every session kendle starts. Tool servers and plugins cost tokens on every turn, so
     kendle.toml can keep only the servers the team uses ([team] mcp_servers) and switch plugins off
-    ([team] disabled_plugins). Unset, sessions get everything. The user's own sessions are untouched."""
+    ([team] disabled_plugins). Unset, sessions get everything. The user's own sessions are untouched.
+    Every session may also use the docs folder (--add-dir): the roles hand work over through it."""
     team, flags = CONFIG["team"], []
+    if os.path.isdir(DOCS):
+        # the team's handoffs live in <docs>/, linked into each worktree; Claude Code follows the link
+        # to a folder outside the session's own and would refuse (or ask about) every read and write
+        flags += ["--add-dir", DOCS]
     if team["mcp_servers"] is not None:
         path = os.path.join(STATE, "mcp-team.json")
         try:

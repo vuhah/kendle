@@ -133,6 +133,7 @@ class TeamFlags(KendleTest):
 
     def test_unset_keeps_everything_set_trims(self):
         args = self.calls_for("plain")
+        self.assertEqual(args[args.index("--add-dir") + 1], os.path.join(self.w.ws, "agent_docs"))
         self.assertNotIn("--strict-mcp-config", args)
         self.assertNotIn("--settings", args)
         self.assertFalse(any("kendle task" in a for a in args))  # no tracker: no hint
