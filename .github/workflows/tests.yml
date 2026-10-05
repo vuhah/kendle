@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.9" }
+          - { os: ubuntu-latest, python: "3.13" }
+          - { os: macos-latest, python: "3.13" }
+          - { os: macos-latest, python: system }       # Apple's /usr/bin/python3 (3.9), as on a fresh Mac
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        if: matrix.python != 'system'
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Python to test with
+        run: |
+          if [ "${{ matrix.python }}" = system ]; then echo "PY=/usr/bin/python3" >> "$GITHUB_ENV"; else echo "PY=python" >> "$GITHUB_ENV"; fi
+
+      - name: tmux and lsof
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then sudo apt-get update -q && sudo apt-get install -y -q tmux lsof; else brew install tmux; fi
+          tmux -V
+
+      - name: git identity for the test repos
+        run: |
+          git config --global user.name "kendle tests"
+          git config --global user.email "tests@example.com"
+          git config --global init.defaultBranch main
+
+      - name: tests
+        run: |
+          $PY --version
+          $PY -m unittest discover -s tests -v

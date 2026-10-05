@@ -1,5 +1,7 @@
 # kendle
 
+[![tests](https://github.com/vuhah/kendle/actions/workflows/tests.yml/badge.svg)](https://github.com/vuhah/kendle/actions/workflows/tests.yml)
+
 *A kendle is a litter of kittens - here, a small team of agents that work together.*
 
 One terminal screen for running many Claude Code sessions over one git repository: a sidebar of
