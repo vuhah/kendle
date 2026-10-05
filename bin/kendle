@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+"""kendle - the one entry point. `kendle` opens the console; `kendle help` lists the commands."""
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+from kendle import cli
+
+if __name__ == "__main__":
+    sys.exit(cli.main(sys.argv[1:]))

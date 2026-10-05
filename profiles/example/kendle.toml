@@ -1,0 +1,97 @@
+# kendle.toml - put this at the workspace root: the folder that holds your repo checkout,
+# one folder per piece of work (git worktrees, made by `kendle new`), and the team's notes.
+#
+#   my-workspace/
+#     kendle.toml
+#     my-app/            the primary checkout (repo.path) - never a feature itself
+#     ask/               the Ask desk: git -C my-app worktree add --detach ../ask origin/main
+#     agent_docs/        per-feature notes (workspace.docs)
+#     fix-login/         a feature worktree, from `kendle new fix-login`
+#
+# Only repo.path is required; every other value below is the default.
+
+[repo]
+path = "my-app"              # the primary checkout, relative to this file
+remote = "origin"
+base = "main"                # features branch from <remote>/<base>; the Ask desk follows it
+
+[workspace]
+# name = "my-app"            # shown at the top of the sidebar; default: this folder's name
+docs = "agent_docs"          # <docs>/<feature>/ for each feature, <docs>/reviews/ for review findings
+ask = "ask"                  # the Ask desk's folder
+reserved = []                # more folder names that are never features, e.g. ["tools", "shared"]
+reserve_gb = 10              # free disk a new feature needs
+low_disk_hint = "kendle disk shows what can go"
+
+[disk]
+budget_gb = 60               # trim quiet features' caches when the workspace grows past this
+caches = []                  # regenerable folders inside each worktree, e.g. ["web/dist", "web/.angular"]
+bazel = false                # also count and trim each worktree's bazel output base
+bazel_root = ""              # default: bazel's own (/private/var/tmp/_bazel_$USER on macOS)
+
+[team]
+# mcp_servers = ["chrome-devtools"]   # keep only these tool servers in kendle's sessions; unset: all
+disabled_plugins = []        # plugins switched off in kendle's sessions (they cost tokens every turn)
+
+[services]
+# Each feature can run its own copy of the app: `kendle stack start web api`. Two features at once:
+# the second runs with every shifted port moved by shift_by, on the second host.
+app = "web"                  # the service the browser opens; its URL is shown
+# shift_by = 100
+# shift_ports = [3000, 8080] # default: the ports of the services kendle starts
+# idle_minutes = 30          # stop a feature's services when its sessions are quiet this long
+# intellij_dir = ".idea/runConfigurations"   # for `intellij =` services; may start with {workspace}
+# compose_file = "docker-compose.yml"
+
+[services.web]               # a plain command: {port} {host} {offset} {worktree} filled in
+run = "npm run dev -- --port {port}"
+cwd = "web"
+port = 3000
+watch = ["web/"]                            # kendle stack restart-affected: changes here restart it
+watch_names = ["package.json", "vite.config.ts"]   # ... but only these files
+
+[services.api]               # an IntelliJ run configuration (Bazel run or npm), the first that exists
+intellij = ["Run_api.xml"]
+watch = ["api/", "shared/"]
+
+[services.db]                # a docker compose service from the worktree's compose file
+compose = "postgres"
+
+[services.redis]             # check-only: `kendle services` reports it, kendle never starts it
+port = 6379
+
+[review]
+# host = "github"            # gerrit, github or gitlab; unset: guessed from the remote's URL
+slots = 3
+
+[task]
+# fetch = "gh issue view {id}"   # `kendle task <id>` runs it; sessions are told they can
+
+[gate]
+# `kendle gate` before a push: these git checks, then the steps. Each step passes with exit code 0.
+fetch_base = true
+max_commits = 0              # commits allowed ahead of the base; 0: any number
+clean_tree = true
+stray = ["^\\.idea/", "\\.orig$"]       # regexes: paths that must never be in the change
+# message = "python3 scripts/check-message.py {file}"   # {source}: commit or file
+cleanup = []                 # untracked files the steps leave behind
+
+[gate.steps.test]
+run = "npm test"
+when = ["web/", "*.ts"]      # only when a changed file matches (prefix or glob)
+lane = "web"                 # lanes run side by side; steps in a lane run in order
+timeout = 1800
+
+[gate.steps.e2e]
+run = "npm run e2e"
+lane = "web"
+full = true                  # only with `kendle gate --full`
+needs = ["test"]
+
+[prompts]
+# Each session kind starts with a system note; replace any of them here. {fields} are filled in:
+#   all:      {remote} {base} {docs}
+#   manager:  {feature} {path} {branch}     sub, fresh, promote: {feature}     review: {file}
+# ask = """
+# You are the Ask desk. ...
+# """

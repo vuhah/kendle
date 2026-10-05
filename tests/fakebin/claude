@@ -1,0 +1,7 @@
+#!/bin/sh
+# A stand-in for Claude Code in tests: records its arguments and its folder, then waits to be stopped.
+f="$KENDLE_STATE/claude-$$.args"
+pwd > "$f"
+printf '%s\n' "$@" >> "$f"
+echo "fake claude running"
+exec sleep 3600
