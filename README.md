@@ -28,7 +28,7 @@ Status: young. It ran for a month inside one team's monorepo and has just been l
 
 ## Install
 
-You need macOS (Linux should work, but is untested), Python 3.9+, tmux 3.x, git, and
+You need macOS or Linux (both tested on every push), Python 3.9+, tmux 3.x, git, and
 [Claude Code](https://claude.com/claude-code) (`claude` on your `PATH`). Nothing else - kendle is
 Python's standard library and a tmux config.
 
