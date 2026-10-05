@@ -164,6 +164,16 @@ def _allocate(feature, replace):
     return slot_of(oldest)
 
 
+def _held(feature, name, port, lis):
+    """Why a service's port is taken: another feature's stack, or a process kendle did not start."""
+    other = next((x for x in running_stacks() if x != feature
+                  and any(s["port"] == port and s["state"] in ("up", "starting") for s in status(x))), None)
+    if other:
+        return f"port {port} for {name} is in use by the {other} stack - stop it there first: kendle stack stop -f {other}"
+    return (f"port {port} for {name} is held by pid {lis[0]} ({lis[1]}), which kendle stack did not start - "
+            "stop it yourself (an IDE run?) and retry")
+
+
 # ---- actions ----------------------------------------------------------------------
 
 def start(feature_name, names, replace=False):
@@ -184,8 +194,7 @@ def start(feature_name, names, replace=False):
         cfg = services.spec(name, f, slot)
         lis = listener(cfg["port"]) if cfg.get("port") else None
         if lis:
-            raise RuntimeError(f"port {cfg['port']} for {name} is held by pid {lis[0]} ({lis[1]}), which kendle stack "
-                               "did not start - stop it yourself (an IDE run?) and retry")
+            raise RuntimeError(_held(feature, name, cfg["port"], lis))
         log = open(log_path(feature, name), "a")
         log.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} start {name} in {feature} "
                   f"({cfg['label']}, stack {slot + 1}, port {cfg.get('port')}) =====\n")
@@ -354,7 +363,9 @@ def wait(feature_name, names=None, timeout=540):
         rows = [s for s in status(feature) if (not names or s["service"] in names) and not s.get("stopped")]
         if any(s["state"] == "crashed" for s in rows):
             return rows, "crashed"
-        if rows and all(s["state"] == "up" for s in rows):
+        if not rows or set(names or ()) - {s["service"] for s in rows}:
+            return rows, "not started"            # nothing to wait for: it was never started, or stopped
+        if all(s["state"] == "up" for s in rows):
             return rows, "up"
         if time.time() > end:
             return rows, "starting"

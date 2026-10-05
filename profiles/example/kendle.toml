@@ -56,6 +56,8 @@ watch = ["api/", "shared/"]
 
 [services.db]                # a docker compose service from the worktree's compose file
 compose = "postgres"
+port = 5432                  # with it, the compose file can publish "${KENDLE_PORT:-5432}:5432" and
+                             # the second stack's copy moves to 5532; without it, one stack at a time
 
 [services.redis]             # check-only: `kendle services` reports it, kendle never starts it
 port = 6379

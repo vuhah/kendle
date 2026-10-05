@@ -9,7 +9,8 @@
   intellij = ["Bazel_run_api.xml"]     the first one that exists; run/env/port come from it
 
   [services.db]                        a docker compose service, from the worktree's compose file
-  compose = "db"
+  compose = "db"                       (to run in the second stack too, give it its port here and
+  port = 5432                           publish it as "${KENDLE_PORT:-5432}:5432" in the compose file)
 
 A service with only a port is check-only: `kendle services` reports it, kendle never starts it.
 Every form turns into the same spec, which kendle.stack runs: kendle owns the process group it starts
@@ -153,11 +154,14 @@ def _compose_file(worktree):
     return os.path.join(worktree, SETTINGS["compose_file"])
 
 
-def _compose(name, spec, worktree, feature):
+def _compose(name, spec, worktree, feature, env=None):
+    """The service as compose runs it; its port is the first one it publishes, with ${...} in the
+    compose file filled from the environment plus env."""
     svc = spec.get("compose") or name
     base = ["docker", "compose", "-f", _compose_file(worktree), "-p", f"kendle-{feature}"]
     port = None
-    r = subprocess.run(base + ["config", "--format", "json"], capture_output=True, text=True, cwd=worktree)
+    r = subprocess.run(base + ["config", "--format", "json"], capture_output=True, text=True, cwd=worktree,
+                       env=dict(os.environ, **(env or {})))
     if r.returncode == 0:
         for p in (json.loads(r.stdout).get("services", {}).get(svc, {}).get("ports") or []):
             if str(p.get("published", "")).isdigit():
@@ -183,6 +187,13 @@ def spec(name, f, slot=0):
         base = {"label": "kendle.toml", "shell": s["run"], "port": None}
     port = s.get("port") or base.get("port")
     shifted_port = port + off if port and port in SHIFTABLE else port
+    if off and port and "compose" in s and not s.get("intellij"):
+        # the compose file decides what is published: it must take the second stack's port from kendle
+        moved = _compose(name, s, worktree, f["name"], {"KENDLE_PORT": str(shifted_port)})["port"]
+        if shifted_port == port or moved != shifted_port:
+            raise LookupError(f"{name} would publish port {moved or port} in the second stack, as in the first - "
+                              f"give it its port in kendle.toml (services.{name}: port = {port}) and publish that "
+                              f"in the compose file as \"${{KENDLE_PORT:-{port}}}:<container port>\"")
     state = os.path.join(core.STATE, "stack", f["name"])
     fields = {"port": shifted_port or "", "host": host(slot), "offset": off, "shifted_dir": state,
               "worktree": worktree, "workspace": core.HUB, "feature": f["name"]}

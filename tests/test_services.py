@@ -105,6 +105,16 @@ class Stack(KendleTest):
         finally:
             self.w.write_toml(read(os.path.join(self.w.ws, "kendle.toml")).split("[services.broken]")[0])
 
+    def test_wait_on_a_service_never_started_returns_at_once(self):
+        began = time.time()
+        r = self.w.kendle("stack", "wait", "web", "-f", "two", check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("-> not started", r.stdout)
+        self.assertLess(time.time() - began, 5)
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        r = self.w.kendle("stack", "wait", "web", "-f", "two", check=False)   # another feature's start is not this one's
+        self.assertIn("-> not started", r.stdout)
+
     def test_check_only_services_are_never_started_or_shifted(self):
         r = self.w.kendle("stack", "start", "db", "-f", "one", check=False)
         self.assertIn("db is check-only", r.stderr)
@@ -139,23 +149,83 @@ class Stack(KendleTest):
         self.assertEqual(got, ["one"])
 
 
+CACHE, PG = free_port(), free_port()
+
+
 class Compose(KendleTest):
-    TOML = """
+    """Compose services through tests/fakebin/docker, which reads the compose file (JSON) as compose
+    does - ${VAR:-default} included - and listens on the published port for `up`."""
+    TOML = f"""
         [services.cache]
         compose = "cache"
+
+        [services.db]
+        compose = "db"
+        port = {PG}
     """
+    COMPOSE = {"services": {"cache": {"image": "redis:7", "ports": [f"{CACHE}:6379"]},
+                            "db": {"image": "postgres:17", "ports": [f"${{KENDLE_PORT:-{PG}}}:5432"]}}}
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        for name in ("c1", "c2"):
+            cls.w.kendle("new", name)
+            with open(os.path.join(cls.w.ws, name, "docker-compose.yml"), "w") as f:
+                json.dump(cls.COMPOSE, f)
+
+    def tearDown(self):
+        for name in ("c1", "c2"):
+            self.w.kendle("stack", "stop", "-f", name, check=False)
 
     def test_compose_service_comes_from_the_compose_file(self):
-        if not shutil.which("docker"):
-            self.skipTest("docker is not installed")
-        self.w.kendle("new", "c1")
-        with open(os.path.join(self.w.ws, "c1", "docker-compose.yml"), "w") as f:
-            f.write('services:\n  cache:\n    image: redis:7\n    ports:\n      - "16379:6379"\n')
         got = self.w.py("""
             from kendle import core, services
             s = services.spec("cache", core.feature("c1"), 0)
             print(json.dumps([s["argv"][-4:], s["port"], s["up_when"], s["stop"][-2:]]))""")
-        self.assertEqual(got, [["kendle-c1", "up", "--no-log-prefix", "cache"], 16379, "listening", ["stop", "cache"]])
+        self.assertEqual(got, [["kendle-c1", "up", "--no-log-prefix", "cache"], CACHE, "listening", ["stop", "cache"]])
+
+    def test_a_compose_port_from_kendle_port_moves_in_the_second_stack(self):
+        self.assertIn(f"starting on port {PG}", self.w.kendle("stack", "start", "db", "-f", "c1").stdout)
+        self.assertEqual(self.w.kendle("stack", "wait", "-f", "c1").returncode, 0)
+        self.assertIn(f"starting on port {PG + 100}", self.w.kendle("stack", "start", "db", "-f", "c2").stdout)
+        self.assertEqual(self.w.kendle("stack", "wait", "-f", "c2").returncode, 0)
+        self.assertTrue(answers(PG) and answers(PG + 100))
+
+    def test_a_fixed_compose_port_is_refused_in_the_second_stack_and_says_how_to_move_it(self):
+        self.w.kendle("stack", "start", "cache", "-f", "c1")
+        self.assertEqual(self.w.kendle("stack", "wait", "-f", "c1").returncode, 0)
+        r = self.w.kendle("stack", "start", "cache", "-f", "c2", check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f"cache would publish port {CACHE} in the second stack", r.stderr)
+        self.assertIn(f'"${{KENDLE_PORT:-{CACHE}}}:<container port>"', r.stderr)
+        self.assertIn(f"port = {CACHE}", r.stderr)
+        self.assertNotIn("did not start", r.stderr)
+        self.assertTrue(answers(CACHE))                        # the first stack is untouched
+
+
+class HeldByAnotherStack(KendleTest):
+    """A service whose port does not move (shift_ports leaves it out) runs in one stack at a time."""
+    TOML = f"""
+        [services]
+        shift_ports = []
+
+        [services.web]
+        run = "exec {sys.executable} {LISTEN} {{port}}"
+        port = {free_port()}
+    """
+
+    def test_the_refusal_names_the_feature_holding_the_port(self):
+        for name in ("h1", "h2"):
+            self.w.kendle("new", name)
+        try:
+            self.w.kendle("stack", "start", "web", "-f", "h1")
+            self.assertEqual(self.w.kendle("stack", "wait", "-f", "h1").returncode, 0)
+            r = self.w.kendle("stack", "start", "web", "-f", "h2", check=False)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("is in use by the h1 stack - stop it there first: kendle stack stop -f h1", r.stderr)
+        finally:
+            self.w.kendle("stack", "stop", "-f", "h1", check=False)
 
 
 class IntelliJ(KendleTest):

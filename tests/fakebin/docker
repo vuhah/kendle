@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""A stand-in for `docker compose` in tests: config, up and stop, nothing else.
+
+The compose file is JSON (which is YAML too). Its ${VAR:-default} references are filled from the
+environment, as compose does. `up <service>` listens on the service's first published port, so
+kendle stack sees it come up; `stop` does nothing - kendle stops the process group it started."""
+import json, os, re, subprocess, sys
+
+args = sys.argv[1:]
+if args[:1] != ["compose"]:
+    sys.exit("fake docker: only `docker compose` is understood")
+args = args[1:]
+opts = {}
+while args and args[0] in ("-f", "-p"):
+    opts[args[0]] = args[1]
+    args = args[2:]
+
+
+def fill(m):
+    return os.environ.get(m.group(1)) or m.group(2) or ""
+
+
+with open(opts["-f"]) as f:
+    text = re.sub(r"\$\{(\w+)(?::-([^}]*))?\}", fill, f.read())
+services = {}
+for name, svc in json.loads(text).get("services", {}).items():
+    ports = []
+    for p in svc.get("ports", []):
+        published, _, target = str(p).rpartition(":")
+        ports.append({"target": int(target), "published": published, "protocol": "tcp"})
+    services[name] = {"ports": ports}
+
+cmd = args[0]
+if cmd == "config":
+    print(json.dumps({"name": opts.get("-p"), "services": services}))
+elif cmd == "up":
+    port = services[args[-1]]["ports"][0]["published"]
+    listen = os.path.join(os.path.dirname(os.path.realpath(__file__)), "listen")
+    os.execv(sys.executable, [sys.executable, listen, port])
+elif cmd != "stop":
+    sys.exit(f"fake docker: compose {cmd} is not understood")

@@ -7,7 +7,8 @@
   kendle stack restart <service> ...
   kendle stack restart-affected          restart only services whose code changed since they started
   kendle stack logs <service> [-n N] [--errors] [--all]
-  kendle stack wait [service ...]        wait until up or crashed (max 9 min; run again if still starting)
+  kendle stack wait [service ...]        wait until up or crashed (max 9 min; run again if still starting);
+                                         at once 'not started' for one never started or stopped
   kendle stack stop-idle [--minutes N]   stop stacks whose feature did nothing for N min (default 30; the
                                          console does this every minute on its own)
 
@@ -91,7 +92,7 @@ def main(argv):
         elif cmd == "wait":
             rows, verdict = _stack.wait(feature, names or None)
             show(rows); print(f"  -> {verdict}")
-            return {"up": 0, "crashed": 1}.get(verdict, 75)
+            return {"up": 0, "crashed": 1, "not started": 1}.get(verdict, 75)
         else:
             print(__doc__.strip(), file=sys.stderr); return 2
     except (LookupError, ValueError, RuntimeError) as err:

@@ -92,6 +92,9 @@ against it.
 - `g` — meanwhile, review a colleague's pull request: paste `https://github.com/you/shop/pull/42`.
   Its findings are saved to `agent_docs/reviews/` when you close it.
 
+A new feature is a folder Claude Code has not seen before, so the first session there shows Claude
+Code's folder-trust question in its pane; answer it there and the session carries on.
+
 Everything the console does is a command too, so a script or another agent can drive it:
 
     kendle ask "why does checkout double-charge on retry?"
@@ -102,7 +105,9 @@ Everything the console does is a command too, so a script or another agent can d
     kendle list                                        # everything, with state
 
 **4. Two features at once.** Start the stack of a second feature and it runs on shifted ports
-(3100, 8180) on `127.0.0.1`, so both apps and their logins work side by side.
+(3100, 8180) on `127.0.0.1`, so both apps and their logins work side by side. A docker compose
+service moves too when `kendle.toml` gives it its port and the compose file publishes that port as
+`"${KENDLE_PORT:-5432}:5432"`; otherwise kendle refuses to start it a second time and says why.
 
 ## Configuration
 
