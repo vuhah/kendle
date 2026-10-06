@@ -10,7 +10,7 @@ import curses, locale, os, signal, sys, textwrap, threading, time, traceback
 os.environ.setdefault("ESCDELAY", "25")
 if not any(os.environ.get(k) for k in ("LC_ALL", "LC_CTYPE", "LANG")):
     os.environ["LC_CTYPE"] = "en_US.UTF-8"
-from kendle import core
+from kendle import config, core
 from kendle import stack as _stack
 
 REFRESH = 2.0
@@ -18,7 +18,7 @@ TOP = 2                                              # first row of the list
 MSG_LINES = 3                                        # messages and prompts wrap over up to 3 lines
 DETAIL = 3                                           # separator + 2 lines about the selected row
 SELECTABLE = {"desk", "question", "review", "feature", "manager", "sub", "internal", "idlehdr", "idle"}
-STATE_COLOR = {"waiting": "yellow", "answered": "yellow", "working": "green", "starting": "green"}
+STATE_COLOR = {"waiting": "yellow", "answered": "yellow", "trust?": "yellow", "working": "green", "starting": "green"}
 
 
 def fit(text, room):
@@ -84,7 +84,31 @@ class Sidebar:
         self.rss, self.need_you = {}, 0
         self.pending_data, self.wake = None, threading.Event()
         self.stacks, self.logs_shown = set(), False   # features whose services run; is the column up?
-        self.idle_checked = self.disk_checked = 0
+        self.idle_checked = self.disk_checked = self.config_checked = 0
+        self.config_mtime = self.toml_mtime()
+
+    # ---- kendle.toml ----
+    @staticmethod
+    def toml_mtime():
+        try:
+            return os.stat(os.path.join(core.HUB, config.FILE)).st_mtime
+        except OSError:
+            return None
+
+    def watch_config(self):
+        """kendle.toml changed: restart this sidebar on it (sessions run in panes of their own and go
+        on). Checked first, so a half-saved or broken file shows its error and the console keeps what it had."""
+        mtime = self.toml_mtime()
+        if mtime == self.config_mtime or self.busy or self.viewer:
+            return                                    # unchanged, or busy (a job, a transcript open): later
+        self.config_mtime = mtime
+        problem = config.check(core.HUB)
+        if problem:
+            self.say(f"kendle.toml not reloaded: {problem}", error=True)
+            return
+        curses.endwin()
+        os.environ["KENDLE_RELOADED"] = self.sel or ""
+        os.execv(sys.executable, [sys.executable, core.KENDLE, "sidebar"])
 
     # ---- data ----
     def fetch(self):
@@ -96,8 +120,8 @@ class Sidebar:
             live = [m for m in f["managers"] if m["state"] != "stopped"]
             working = any(s["state"] == "working" for m in f["managers"] for s in m["subs"] + m["internal"])
             busy = working or any(m["state"] == "working" for m in live)
-            fresh = False                             # a reply in the last 2 hours still needs you
-            for m in live:
+            fresh = any(m["state"] == "trust?" for m in live)   # held at the folder-trust question
+            for m in live:                            # or a reply in the last 2 hours: still needs you
                 if m["state"] == "waiting":
                     replied = last_reply(core.transcript(m["id"], m.get("cwd")))
                     fresh = fresh or bool(replied and time.time() - replied < 7200)
@@ -139,7 +163,8 @@ class Sidebar:
         active = [f for f in self.tree if f.get("_active")]
         idle = [f for f in self.tree if not f.get("_active")]
         self.need_you = sum(1 for f in active if f["status"] == "needs you") + \
-            sum(1 for q in self.questions if q["state"] == "answered")
+            sum(1 for q in self.questions if q["state"] in ("answered", "trust?")) + \
+            sum(1 for r in self.reviews if r["state"] == "trust?")
         rows = []
         if self.desk:
             rows.append({"kind": "desk", "key": "desk"})
@@ -304,7 +329,7 @@ class Sidebar:
             used = self.right(y, w, f"{p:>3}%" if p is not None else "    ", "faint" if ctx_color(p) == "dim" else ctx_color(p), sel)
             shown = fit(state, 10)
             self.put(y, w - used - len(shown) - 3, shown,
-                     {"reviewed": "yellow", "reading": "green", "starting": "green"}.get(state, "faint"), sel)
+                     {"reviewed": "yellow", "trust?": "yellow", "reading": "green", "starting": "green"}.get(state, "faint"), sel)
             self.put(y, 2, "›", "faint", sel)
             label = f"{e['change']}/{e['patchset']} {e['subject']}"
             self.put(y, 4, fit(label, w - used - len(shown) - 9), "text" if state != "closed" else "dim", sel,
@@ -720,6 +745,9 @@ class Sidebar:
         self.colors()
         self.keep_width()
         self.refresh_now()
+        if "KENDLE_RELOADED" in os.environ:           # restarted on a changed kendle.toml
+            self.sel = os.environ.pop("KENDLE_RELOADED") or None
+            self.say("kendle.toml changed - the console now uses it")
         threading.Thread(target=self.fetcher, daemon=True).start()
         actions = {"<": lambda: self.resize_by(-4), ">": lambda: self.resize_by(4), "g": self.new_review,
                    "L": self.toggle_logs,
@@ -739,6 +767,9 @@ class Sidebar:
             if time.time() - self.idle_checked > 60:      # stop stacks nobody has used for 30 min
                 self.idle_checked = time.time()
                 threading.Thread(target=self.stop_idle, daemon=True).start()
+            if time.time() - self.config_checked > REFRESH:
+                self.config_checked = time.time()
+                self.watch_config()
             if self.job_done:
                 self.job_done = False
                 self.refresh_now()

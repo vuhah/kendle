@@ -84,6 +84,19 @@ class Loader(KendleTest):
         self.assertIn("kendle.toml", err)
         self.assertRegex(err, r"line 2\b")
 
+    def test_check_reports_what_any_kendle_command_would_refuse(self):
+        good = '[repo]\npath = "app"\nbase = "main"\n'
+        check = lambda: config.check(self.w.ws)
+        self.w.write_toml(good)
+        self.assertIsNone(check())
+        self.w.write_toml(good + '[services.web]\nrun = "x"\nprot = 1\n')       # caught only when services loads
+        self.assertIn("unknown key services.web.prot", check())
+        self.w.write_toml(good + '[review]\nslots = "three"\n')                  # a value of the wrong kind
+        self.assertIn("three", check())
+        self.w.write_toml('[repo]\npath = "app\n')
+        self.assertRegex(check(), r"line 2\b")
+        self.w.write_toml(good)
+
     def test_no_workspace(self):
         env = self.w.env()
         del env["KENDLE_WORKSPACE"]

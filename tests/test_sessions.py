@@ -102,6 +102,26 @@ class Sessions(KendleTest):
         self.assertIn("'subs' manager session", args[args.index("--append-system-prompt") + 1])
         self.assertTrue(any(s["name"] == "probe" for s in self.state("subs")["subs"]))
 
+    def test_a_session_held_at_the_folder_trust_question_says_so(self):
+        marker = os.path.join(self.w.state, "fake-untrusted")
+        open(marker, "w").close()
+        try:
+            self.manager("trusty")
+            self.w.kendle("ask", "is the folder trusted")
+            self.assertTrue(wait_for(lambda: self.state("trusty")["state"] == "trust?"), self.state("trusty"))
+            asked = lambda: [q for q in json.loads(self.w.kendle("list", "--json").stdout)["ask"]
+                             if q["question"] == "is the folder trusted"]
+            self.assertTrue(wait_for(lambda: asked() and asked()[0]["state"] == "trust?"), asked())
+        finally:
+            os.remove(marker)
+            self.w.kendle("stop", "trusty")
+        self.manager("trusted")
+        call = wait_for(lambda: self.w.claude_calls())
+        self.assertTrue(call)
+        time.sleep(0.5)
+        self.assertEqual(self.state("trusted")["state"], "idle")            # no question asked: still idle
+        self.w.kendle("stop", "trusted")
+
     def test_two_starts_at_once_make_one_manager(self):
         self.w.kendle("new", "twice")
         runs = [subprocess.Popen(RUN + ["manager", "twice"], cwd=self.w.ws, env=self.w.env(), stdout=subprocess.PIPE,

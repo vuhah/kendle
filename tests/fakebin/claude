@@ -3,5 +3,11 @@
 f="$KENDLE_STATE/claude-$$.args"
 pwd > "$f"
 printf '%s\n' "$@" >> "$f"
-echo "fake claude running"
+if [ -e "$KENDLE_STATE/fake-untrusted" ]; then     # as Claude Code in a folder it has not seen
+    echo " Quick safety check: Is this a project you created or one you trust?"
+    echo " ❯ No, exit"
+    echo "   Yes, I trust this folder"
+else
+    echo "fake claude running"
+fi
 exec sleep 3600

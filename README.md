@@ -111,7 +111,8 @@ service moves too when `kendle.toml` gives it its port and the compose file publ
 
 ## Configuration
 
-`kendle.toml` sits at the workspace root; only `[repo] path` is required.
+`kendle.toml` sits at the workspace root; only `[repo] path` is required. An open console picks up
+a saved change on its own, once the file loads cleanly; until then it says what is wrong.
 [`profiles/example/kendle.toml`](profiles/example/kendle.toml) documents every setting:
 
 | Section | What it sets |

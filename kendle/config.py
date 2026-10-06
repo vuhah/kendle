@@ -3,7 +3,7 @@
 The workspace is KENDLE_WORKSPACE, else the nearest folder at or above the current one that holds a
 kendle.toml. Every key has a default except repo.path; profiles/example/kendle.toml documents them all.
 """
-import os, re
+import os, re, subprocess, sys
 
 FILE = "kendle.toml"
 
@@ -108,6 +108,21 @@ def find_workspace(start=None):
                              "or set KENDLE_WORKSPACE.")
         d = os.path.dirname(d)
     return d
+
+
+def check(workspace):
+    """None if the workspace's kendle.toml loads as every kendle command loads it, else why not.
+    Tried in a fresh Python: kendle reads its config once, as it is imported, and some of it (services,
+    review slots) only in the module that uses it."""
+    root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    code = f"import sys; sys.path.insert(0, {root!r}); import kendle.stack, kendle.review, kendle.cmd.disk"
+    r = subprocess.run([sys.executable, "-c", code], cwd=workspace, capture_output=True, text=True,
+                       env=dict(os.environ, KENDLE_WORKSPACE=workspace), stdin=subprocess.DEVNULL)
+    if r.returncode == 0:
+        return None
+    lines = [line for line in r.stderr.splitlines() if line.strip()] or [f"exit {r.returncode}"]
+    last = lines[-1].replace(os.path.join(os.path.realpath(workspace), FILE), FILE)
+    return last[len("kendle: "):] if last.startswith("kendle: ") else last
 
 
 def load(workspace):

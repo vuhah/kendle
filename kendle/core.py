@@ -105,6 +105,17 @@ def is_live(entry, snap):
     return bool(p) and entry.get("server") == server and not p["dead"]
 
 
+TRUST_RE = re.compile(r"trust (this|the files in this) folder", re.I)
+
+
+def held_at_trust(e):
+    """Whether a live session waits at Claude Code's question about trusting its folder - asked
+    before any chat the first time Claude Code runs in a folder, so only the screen shows it."""
+    r = subprocess.run(["tmux", "-L", SOCKET, "capture-pane", "-p", "-t", e["pane"]],
+                       capture_output=True, text=True)
+    return bool(TRUST_RE.search(r.stdout))
+
+
 def display_pane(snap=None):
     """The pane currently in the console's right-hand slot."""
     for pane, p in (snap or snapshot())[1].items():
@@ -716,7 +727,7 @@ def tree():
         if not is_live(e, snap):
             return "stopped"
         s = turn_state(transcript(e["id"], e.get("cwd")), since=epoch(e.get("started"), utc=False))
-        return "idle" if s == "new" else s
+        return ("trust?" if held_at_trust(e) else "idle") if s == "new" else s
     out = []
     for f in features():
         managers = []
@@ -920,7 +931,8 @@ def reviews(all_=False):
             state = "stopped"
         else:
             s = turn_state(transcript(e["id"], e.get("cwd")), since=epoch(e.get("started"), utc=False))
-            state = {"waiting": "reviewed", "working": "reading"}.get(s, "starting")
+            state = {"waiting": "reviewed", "working": "reading"}.get(s) or \
+                ("trust?" if s == "new" and held_at_trust(e) else "starting")
         out.append(dict(e, state=state, ctx=context_of(transcript(e["id"], e.get("cwd")), DEFAULT_MODEL)))
     return sorted(out, key=lambda e: e.get("slot", 0))
 
@@ -1061,7 +1073,8 @@ def questions(all_=False):
             state = "closed"
         else:
             s = turn_state(transcript(e["id"], e.get("cwd")), since=epoch(e.get("started"), utc=False))
-            state = {"waiting": "answered", "working": "working"}.get(s, "starting")
+            state = {"waiting": "answered", "working": "working"}.get(s) or \
+                ("trust?" if s == "new" and held_at_trust(e) else "starting")
         out.append(dict(e, state=state, ctx=context_of(transcript(e["id"], e.get("cwd")), DEFAULT_MODEL)))
     return out
 
