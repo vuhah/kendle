@@ -1,6 +1,6 @@
 """Reviews of someone else's change, from Gerrit, GitHub and GitLab refs on a scratch origin."""
-import os, unittest
-from helpers import KendleTest, read, wait_for
+import os, subprocess, unittest
+from helpers import RUN, KendleTest, read, wait_for
 
 
 class Reviews(KendleTest):
@@ -74,6 +74,17 @@ class Reviews(KendleTest):
         self.assertIn("# Gerrit change 1234 patch set 2 - Login - second try", saved)
         self.assertIn("a.txt:1 - the value is hard-coded.", saved)
         self.assertFalse(os.path.exists(folder))
+
+    def test_starting_reviews_at_once_never_doubles_one_or_shares_a_folder(self):
+        self.host("gerrit")
+        self.w.push_ref({"b.txt": "1"}, "Logout", "refs/changes/78/5678/1")
+        runs = [subprocess.Popen(RUN + ["review", c], cwd=self.w.ws, env=self.w.env(), stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, text=True) for c in ("1234", "1234", "5678")]
+        outs = [p.communicate(timeout=120) for p in runs]
+        self.assertEqual([p.returncode for p in runs], [0, 0, 0], outs)
+        open_ = self.w.py("from kendle import core; print(json.dumps(core.reviews()))")
+        self.assertEqual(sorted(e["change"] for e in open_), ["1234", "5678"])         # one review of 1234, not two
+        self.assertEqual(len({e["cwd"] for e in open_}), 2)                          # each in a folder of its own
 
     def test_at_most_three_at_once(self):
         self.host("gerrit")

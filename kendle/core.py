@@ -4,7 +4,7 @@ Shared by every kendle subcommand (CLI, curses sidebar, viewer). Python 3.9 stdl
 Every tmux call goes to a socket of its own per workspace (tmux -L kendle-<hash>), so the
 console never touches any other tmux use on this machine, nor another workspace's console.
 """
-import calendar, datetime, fcntl, glob, hashlib, json, os, re, shutil, subprocess, time, uuid
+import calendar, contextlib, datetime, fcntl, glob, hashlib, json, os, re, shutil, subprocess, time, uuid
 from kendle import config
 
 HUB      = config.find_workspace()
@@ -261,6 +261,17 @@ def update(fn):
             f.write("\n")
         os.replace(tmp, REGISTRY)
         return result
+
+
+@contextlib.contextmanager
+def starting(what):
+    """One start of `what` at a time, across threads and processes: the look for a running session
+    and the registration of a new one must not interleave with another start (a double key press,
+    two shells), or both start one - or both take the same free review folder."""
+    os.makedirs(STATE, exist_ok=True)
+    with open(os.path.join(STATE, f"start-{what}.lock"), "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 def find(rows, key):
@@ -571,6 +582,11 @@ def lean():
 def start_manager(name, extra=(), prompt=None, fresh=False):
     """Start the feature's one manager, resuming its previous conversation if it has one - unless
     fresh, when a new conversation starts from the feature's docs. Returns (entry, started)."""
+    with starting(f"manager-{name}"):
+        return _start_manager(name, extra, prompt, fresh)
+
+
+def _start_manager(name, extra, prompt, fresh):
     f = feature(name)
     ensure_session()
     reap()
@@ -828,6 +844,11 @@ def review_slots():
 def start_review(change, extra=()):
     """Check out someone else's change in a review folder and read it. An earlier review of the same
     change comes back with its conversation - a console restart or a reboot doesn't lose it."""
+    with starting("review"):                         # one at a time: they share the review folders
+        return _start_review(change, extra)
+
+
+def _start_review(change, extra):
     from kendle import review
     host = review.host()
     ensure_session()
@@ -956,6 +977,11 @@ def start_question(text, extra=()):
 def reopen_question(key, extra=()):
     """Bring a question's session back with its conversation - a console restart or a reboot closes
     them all, and the answer is usually still worth continuing."""
+    with starting("question"):
+        return _reopen_question(key, extra)
+
+
+def _reopen_question(key, extra):
     e = find([x for x in load() if x["kind"] == "question"], key)
     ensure_session()
     reap()

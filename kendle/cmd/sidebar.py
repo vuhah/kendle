@@ -397,7 +397,12 @@ class Sidebar:
             return ch in ("y", "Y")
 
     def background(self, busy, job, done):
-        """Run a slow job (git) off the UI thread; only attributes are touched from it."""
+        """Run a slow job (git) off the UI thread; only attributes are touched from it. One at a time:
+        a second key press while one runs would start the same thing twice."""
+        if self.busy:
+            self.say(f"still {self.busy[0].lower() + self.busy[1:]} - one moment")
+            return
+
         def work():
             try:
                 job()

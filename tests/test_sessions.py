@@ -1,6 +1,6 @@
 """Features, sessions and their states - with a fake claude, on a tmux socket of the test's own."""
-import json, os, time, unittest
-from helpers import KendleTest, assistant, user, read, wait_for, sh
+import json, os, subprocess, time, unittest
+from helpers import RUN, KendleTest, assistant, user, read, wait_for, sh
 
 
 class Features(KendleTest):
@@ -101,6 +101,18 @@ class Sessions(KendleTest):
             self.assertIn(tool, args)
         self.assertIn("'subs' manager session", args[args.index("--append-system-prompt") + 1])
         self.assertTrue(any(s["name"] == "probe" for s in self.state("subs")["subs"]))
+
+    def test_two_starts_at_once_make_one_manager(self):
+        self.w.kendle("new", "twice")
+        runs = [subprocess.Popen(RUN + ["manager", "twice"], cwd=self.w.ws, env=self.w.env(), stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, text=True) for _ in range(2)]
+        outs = [p.communicate(timeout=60)[0].split() for p in runs]
+        self.assertEqual(sorted(o[0] for o in outs), ["already", "started"])                 # one found the other's
+        self.assertEqual(outs[0][-2], outs[1][-2])                                         # the same session
+        managers = [e for e in self.w.py("from kendle import core; print(json.dumps(core.load()))")
+                    if e["kind"] == "manager" and e["feature"] == "twice"]
+        self.assertEqual(len(managers), 1)
+        self.w.kendle("stop", "twice")
 
     def test_fresh_stops_the_manager_and_starts_one_from_the_docs(self):
         first = self.manager("restart")
