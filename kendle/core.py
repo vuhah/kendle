@@ -543,7 +543,7 @@ def internal_subs(manager, alive=True):
                      "name": name,
                      "ctx": context_of(p, meta.get("model", "")), "mtime": os.path.getmtime(p),
                      "description": meta.get("description", ""),
-                     "state": "done" if state == "waiting" else ("working" if recent else "stopped")})
+                     "state": "idle" if state == "waiting" else ("working" if recent else "stopped")})
     # a role restarted after a manager restart gets a new record: show only its latest
     latest = {}
     for sub in subs:
