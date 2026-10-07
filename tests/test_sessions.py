@@ -74,7 +74,8 @@ class Sessions(KendleTest):
 
     def test_quiet_is_not_dead_but_stopped_is(self):
         """A role blocked in one long tool call still counts as working; one its manager stopped
-        (a TaskStop in the manager's transcript) does not; neither does one silent for 30 minutes."""
+        (a TaskStop in the manager's transcript) does not; neither does one silent for 30 minutes.
+        One that replied and waits is idle."""
         sid = self.manager("team")
         path = self.w.transcript_path(sid, os.path.join(self.w.ws, "team"))
         subs = os.path.join(path[:-len(".jsonl")], "subagents")
@@ -89,7 +90,31 @@ class Sessions(KendleTest):
         os.utime(os.path.join(subs, "agent-reviewer.jsonl"), (old, old))
         self.w.write_transcript(path, [user("go"), assistant(stop="tool_use", tool=("TaskStop", {"task_id": "tester"}))])
         states = {s["name"]: s["state"] for s in self.state("team")["internal"]}
-        self.assertEqual(states, {"builder": "working", "tester": "stopped", "reviewer": "stopped", "planner": "done"})
+        self.assertEqual(states, {"builder": "working", "tester": "stopped", "reviewer": "stopped", "planner": "idle"})
+
+    def test_a_waiting_role_is_idle_however_long_ago_it_replied(self):
+        """A role that replied and waits is idle - an hour after its reply, and after a TaskStop too.
+        `kendle list` says idle for it and never done."""
+        sid = self.manager("longwait")
+        path = self.w.transcript_path(sid, os.path.join(self.w.ws, "longwait"))
+        subs = os.path.join(path[:-len(".jsonl")], "subagents")
+        os.makedirs(subs)
+        old = time.time() - 3600
+        for name in ("planner", "auditor"):
+            p = os.path.join(subs, f"agent-{name}.jsonl")
+            self.w.write_transcript(p, [user("brief", ago=3600), assistant("spec written", ago=3600)])
+            os.utime(p, (old, old))
+            with open(os.path.join(subs, f"agent-{name}.meta.json"), "w") as f:
+                json.dump({"name": name}, f)
+        self.w.write_transcript(path, [user("go"), assistant(stop="tool_use", tool=("TaskStop", {"task_id": "auditor"}))])
+        states = {s["name"]: s["state"] for s in self.state("longwait")["internal"]}
+        self.assertEqual(states, {"planner": "idle", "auditor": "idle"})
+        out = self.w.kendle("list").stdout
+        lines = out.splitlines()                                # the longwait block: its header to the next one
+        start = next(i for i, l in enumerate(lines) if l.startswith("\033[1mlongwait\033[0m"))
+        end = next((i for i in range(start + 1, len(lines)) if not lines[i].startswith(" ")), len(lines))
+        rows = {l.split()[1]: l.split()[2] for l in lines[start + 1:end] if "internal" in l}
+        self.assertEqual(rows, {"planner": "idle", "auditor": "idle"}, out)   # idle, never done
 
     def test_sub_agents_are_read_only(self):
         sid = self.manager("subs")
@@ -216,6 +241,31 @@ class Console(KendleTest):
             second = core.turn_state({path!r})
             print(json.dumps([first, second, len(calls)]))""")
         self.assertEqual(got, [["waiting"] * 5, "working", 2])
+
+
+class SidebarRows(KendleTest):
+    """How the sidebar draws a session row: the state word, its colour, and whether the name is dimmed."""
+    ASK = False
+
+    def draw(self, kind, state):
+        return self.w.py(f"""
+            from kendle.cmd import sidebar
+            s = sidebar.Sidebar.__new__(sidebar.Sidebar)
+            s.slot, s.viewer, calls = None, None, []
+            s.put = lambda y, x, text, color="text", selected=False, attr=0: calls.append([text, color])
+            e = {{"id": "x", "name": "planner", "state": {state!r}, "ctx": None, "pane": None}}
+            s.row(0, {{"kind": {kind!r}, "e": e}}, False, 60)
+            print(json.dumps(calls))
+        """)
+
+    def test_an_idle_role_is_dimmed_and_an_idle_manager_is_not(self):
+        self.assertIn(["idle", "faint"], self.draw("internal", "idle"))
+        self.assertIn(["planner", "dim"], self.draw("internal", "idle"))
+        self.assertIn(["idle", "faint"], self.draw("manager", "idle"))
+        self.assertIn(["manager", "text"], self.draw("manager", "idle"))
+        self.assertIn(["planner", "text"], self.draw("sub", "idle"))
+        self.assertIn(["manager", "dim"], self.draw("manager", "stopped"))
+        self.assertIn(["working", "green"], self.draw("internal", "working"))
 
 
 if __name__ == "__main__":

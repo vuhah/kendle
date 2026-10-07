@@ -345,7 +345,7 @@ class Sidebar:
         self.put(y, w - used - len(shown) - 3, shown, STATE_COLOR.get(state, "cyan" if state.startswith("→") else "faint"), sel)
         name = "manager" if kind == "manager" else e["name"]
         room = w - indent - used - len(shown) - 5
-        dimmed = kind == "internal" or state in ("closed", "stopped", "done")
+        dimmed = kind == "internal" or state in ("closed", "stopped")
         self.put(y, indent, fit(name, room), "dim" if dimmed else "text", sel, curses.A_BOLD if on_screen else 0)
         if kind == "question":
             self.put(y, 2, "›", "faint", sel)
