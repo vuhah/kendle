@@ -147,8 +147,7 @@ def enforce(dry=False, quiet_hours=8):
     right now, or touched in the last few hours, is never trimmed - a rebuild costs the user time."""
     used, cap = footprint(), budget()
     if used <= cap:
-        print(f"  workspace {used:.0f}G of {cap}G budget - nothing to do")
-        return 0.0
+        return 0.0, [f"  workspace {used:.0f}G of {cap}G budget - nothing to do"]
     running = live_features()
     rows = []
     for f in core.features():
@@ -163,22 +162,23 @@ def enforce(dry=False, quiet_hours=8):
         if size > 0.5:
             rows.append((quiet, size, f["name"]))
     rows.sort(reverse=True)
-    print(f"  workspace {used:.0f}G is over its {cap}G budget by {used - cap:.0f}G")
+    lines = [f"  workspace {used:.0f}G is over its {cap}G budget by {used - cap:.0f}G"]
     freed, picked = 0.0, []
     for quiet, size, name in rows:
         if used - freed <= cap:
             break
         picked.append(name)
         freed += size
-        print(f"    {size:5.1f}G  {name} (quiet {quiet / 24:.0f}d)" if quiet >= 24 else
-              f"    {size:5.1f}G  {name} (quiet {quiet:.0f}h)")
+        lines.append(f"    {size:5.1f}G  {name} (quiet {quiet / 24:.0f}d)" if quiet >= 24 else
+                     f"    {size:5.1f}G  {name} (quiet {quiet:.0f}h)")
     if not picked:
-        print("  nothing quiet enough to trim - every feature is in use; delete a finished one instead")
-        return 0.0
+        lines.append("  nothing quiet enough to trim - every feature is in use; delete a finished one instead")
+        return 0.0, lines
     if dry:
-        print(f"  would free {freed:.1f}G (dry run)")
-        return freed
-    return trim(picked, "over the workspace budget")
+        lines.append(f"  would free {freed:.1f}G (dry run)")
+        return freed, lines
+    freed, trimmed = trim(picked, "over the workspace budget")
+    return freed, lines + trimmed
 
 
 def report():
@@ -219,40 +219,42 @@ def report():
 
 
 def trim(names, why=""):
-    freed = 0.0
+    """Delete the named features' regenerable caches. Prints nothing: returns the GB freed and the
+    report lines, so the console can run it without writing into its screen."""
+    freed, lines = 0.0, []
     running = live_features()
     for name in names:
         try:
             f = core.feature(name)
         except LookupError:
-            print(f"  no feature '{name}'")
+            lines.append(f"  no feature '{name}'")
             continue
         if name in running:
-            print(f"  skipped {name}: it is working right now or its services are up")
+            lines.append(f"  skipped {name}: it is working right now or its services are up")
             continue
         w = f["path"]
         dirty = [l for l in git(w, "status", "--porcelain").splitlines() if l.strip()]
-        print(f"  {name}{' - ' + why if why else ''}" + (f"  ({len(dirty)} uncommitted files kept)" if dirty else ""))
+        lines.append(f"  {name}{' - ' + why if why else ''}" + (f"  ({len(dirty)} uncommitted files kept)" if dirty else ""))
         base = output_base(w)
         if base and os.path.isdir(base):
             size = gb(base)
             subprocess.run(["bazel", "shutdown"], cwd=w, capture_output=True)
             shutil.rmtree(base, ignore_errors=True)
             freed += size
-            print(f"    {size:5.1f}G  bazel output base")
+            lines.append(f"    {size:5.1f}G  bazel output base")
         for c in CACHES:
             p = os.path.join(w, c)
             if os.path.exists(p):
                 size = gb(p)
                 shutil.rmtree(p, ignore_errors=True)
                 freed += size
-                print(f"    {size:5.1f}G  {c}")
-    print(f"  freed {freed:.1f} GB · free now {core.free_gb()} GB")
-    return freed
+                lines.append(f"    {size:5.1f}G  {c}")
+    lines.append(f"  freed {freed:.1f} GB · free now {core.free_gb()} GB")
+    return freed, lines
 
 
 def orphans():
-    freed = 0.0
+    freed, lines = 0.0, []
     for base, ws in orphan_bases():
         size = gb(base)
         pid_file = os.path.join(base, "server", "server.pid.txt")
@@ -261,9 +263,9 @@ def orphans():
             subprocess.run(["kill", pid], capture_output=True)
         shutil.rmtree(base, ignore_errors=True)
         freed += size
-        print(f"  {size:5.1f}G  orphan of {os.path.basename(ws)}")
-    print(f"  freed {freed:.1f} GB · free now {core.free_gb()} GB" if freed else "  no orphan caches")
-    return freed
+        lines.append(f"  {size:5.1f}G  orphan of {os.path.basename(ws)}")
+    lines.append(f"  freed {freed:.1f} GB · free now {core.free_gb()} GB" if freed else "  no orphan caches")
+    return freed, lines
 
 
 def idle(days=3):
@@ -271,9 +273,13 @@ def idle(days=3):
     names = [f["name"] for f in core.features()
              if f["name"] not in running and (time.time() - last_touch(f["path"])) / 86400 >= days]
     if not names:
-        print(f"  no feature has been idle for {days} days")
-        return 0.0
+        return 0.0, [f"  no feature has been idle for {days} days"]
     return trim(names, f"idle {days}+ days")
+
+
+def print_lines(result):
+    for line in result[1]:
+        print(line)
 
 
 def main(argv):
@@ -285,16 +291,16 @@ def main(argv):
         return 0
     cmd, rest = argv[0], argv[1:]
     if cmd == "trim" and rest:
-        trim(rest)
+        print_lines(trim(rest))
     elif cmd == "orphans":
-        orphans()
+        print_lines(orphans())
     elif cmd == "idle":
-        idle(int(rest[0]) if rest and rest[0].isdigit() else 3)
+        print_lines(idle(int(rest[0]) if rest and rest[0].isdigit() else 3))
     elif cmd == "budget":
         print(f"  workspace budget: {budget(rest[0]) if rest and rest[0].isdigit() else budget()} GB "
               f"· using {footprint():.0f} GB")
     elif cmd == "enforce":
-        enforce(dry="--dry" in rest)
+        print_lines(enforce(dry="--dry" in rest))
     elif cmd == "merged":
         for f in core.features():
             if is_merged(f["path"]):

@@ -638,23 +638,25 @@ class Sidebar:
         if os.environ.get("KENDLE_STATE"):                # a test console: never touch the real disk
             return
         from kendle.cmd import disk as disk
-        free = core.free_gb()
-        orphans = disk.orphan_bases()
-        if orphans and (free is None or free < 25):   # nothing can use these - the user allowed this
-            freed = sum(disk.gb(b) for b, _ in orphans)
-            disk.orphans()
-            self.say(f"disk {free}G - deleted {freed:.0f}G of caches whose worktree is gone")
-        used, cap = disk.footprint(), disk.budget()
-        if used > cap:                                # over the hub's budget: trim what is quiet
-            freed = disk.enforce()
-            if freed:
-                self.say(f"hub was {used:.0f}G of its {cap}G budget - trimmed {freed:.0f}G of caches "
-                         "from features nobody has touched (code and uncommitted work kept)")
-            else:
-                self.say(f"hub {used:.0f}G is over its {cap}G budget and everything is in use - "
-                         "finish or delete a feature", error=True)
-        elif free is not None and free < 20:
-            self.say(f"disk {free}G free - kendle disk shows what can go", error=True)
+        try:                                          # the disk routines print nothing: only say() reaches the screen
+            free = core.free_gb()
+            orphans = disk.orphan_bases()
+            if orphans and (free is None or free < 25):   # nothing can use these - the user allowed this
+                freed, _ = disk.orphans()
+                self.say(f"disk {free}G - deleted {freed:.0f}G of caches whose worktree is gone")
+            used, cap = disk.footprint(), disk.budget()
+            if used > cap:                                # over the hub's budget: trim what is quiet
+                freed, _ = disk.enforce()
+                if freed:
+                    self.say(f"hub was {used:.0f}G of its {cap}G budget - trimmed {freed:.0f}G of caches "
+                             "from features nobody has touched (code and uncommitted work kept)")
+                else:
+                    self.say(f"hub {used:.0f}G is over its {cap}G budget and everything is in use - "
+                             "finish or delete a feature", error=True)
+            elif free is not None and free < 20:
+                self.say(f"disk {free}G free - kendle disk shows what can go", error=True)
+        except Exception as err:
+            self.say(f"disk check failed: {err}", error=True)
 
     def stop_idle(self):
         if os.environ.get("KENDLE_STATE"):                # a test console: never touch the real stacks
