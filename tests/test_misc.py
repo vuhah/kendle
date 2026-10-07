@@ -1,6 +1,6 @@
 """kendle task, kendle disk, and the command line itself."""
-import os, unittest
-from helpers import KendleTest, Workspace, read
+import os, tempfile, textwrap, time, unittest
+from helpers import KendleTest, Workspace, read, sh
 
 
 class Task(KendleTest):
@@ -42,6 +42,91 @@ class Disk(KendleTest):
         self.assertTrue(os.path.exists(os.path.join(self.w.ws, "big", "wip.py")))
         self.assertIn("workspace budget: 9 GB", self.w.kendle("disk", "budget", "9").stdout)
         self.assertIn(" big ", self.w.kendle("disk", "merged").stdout + " ")
+
+    # The console's background disk check runs these routines while curses owns the screen: they
+    # must print nothing. Each snippet captures stdout/stderr around the call and returns them.
+    CAPTURE = """
+        import io, os, contextlib, types
+        from kendle import core
+        from kendle.cmd import disk
+        out, err, said = io.StringIO(), io.StringIO(), []
+        stand_in = types.SimpleNamespace(say=lambda text, error=False: said.append([text, error]))
+    """
+
+    def snippet(self, *parts):
+        return self.w.py("".join(textwrap.dedent(p) for p in (self.CAPTURE,) + parts))
+
+    def quiet_feature(self, name):
+        """A feature with a 1M dist/ cache and a last commit two days old."""
+        self.w.kendle("new", name)
+        path = os.path.join(self.w.ws, name)
+        os.makedirs(os.path.join(path, "dist"))
+        with open(os.path.join(path, "dist", "bundle.js"), "w") as f:
+            f.write("x" * 1024 * 1024)
+        sh("git", "-C", path, "-c", "user.email=t@example.com", "-c", "user.name=Tester",
+           "commit", "-q", "--allow-empty", "-m", "old work",
+           env={**os.environ, "GIT_COMMITTER_DATE": f"{int(time.time()) - 2 * 86400} +0000"})
+        return path
+
+    def test_enforce_prints_nothing_and_returns_its_report(self):
+        path = self.quiet_feature("stale")
+        r = self.snippet("""
+            disk.gb = lambda path: 10.0                         # over any budget; every cache worth trimming
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                freed, lines = disk.enforce()
+            print(json.dumps([out.getvalue(), err.getvalue(), freed, lines]))
+        """)
+        self.assertEqual(r[:2], ["", ""])
+        self.assertGreater(r[2], 0)
+        self.assertTrue(any("stale" in line for line in r[3]), r[3])
+        self.assertFalse(os.path.exists(os.path.join(path, "dist")))
+
+    def watch_disk(self, stubs):
+        """Sidebar.watch_disk on a stand-in that records say(), outside the test console's guard."""
+        return self.snippet(stubs, """
+            from kendle.cmd.sidebar import Sidebar
+            os.environ.pop("KENDLE_STATE")
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                Sidebar.watch_disk(stand_in)
+            print(json.dumps([out.getvalue(), err.getvalue(), said]))
+        """)
+
+    def test_console_over_budget_trims_quietly(self):
+        path = self.quiet_feature("dusty")
+        out, err, said = self.watch_disk("""
+            core.free_gb = lambda: 100
+            disk.orphan_bases = lambda: []
+            disk.gb = lambda path: 10.0
+        """)
+        self.assertEqual([out, err], ["", ""])
+        self.assertEqual(len(said), 1, said)
+        self.assertTrue(said[0][0].startswith("hub was"), said)
+        self.assertFalse(said[0][1])
+        self.assertFalse(os.path.exists(os.path.join(path, "dist")))
+
+    def test_console_deletes_orphans_quietly(self):
+        base = tempfile.mkdtemp(dir=self.w.root)
+        out, err, said = self.watch_disk(f"""
+            core.free_gb = lambda: 22
+            disk.orphan_bases = lambda: [({base!r}, "/gone")]
+            disk.footprint = lambda: 0.0
+        """)
+        self.assertEqual([out, err], ["", ""])
+        self.assertEqual(len(said), 1, said)
+        self.assertTrue(said[0][0].startswith("disk 22G - deleted"), said)
+        self.assertFalse(said[0][1])
+        self.assertFalse(os.path.exists(base))
+
+    def test_console_reports_a_failed_check(self):
+        out, err, said = self.watch_disk("""
+            core.free_gb = lambda: 100
+            disk.orphan_bases = lambda: []
+            def broken():
+                raise OSError("du went away")
+            disk.footprint = broken
+        """)
+        self.assertEqual([out, err], ["", ""])
+        self.assertEqual(said, [["disk check failed: du went away", True]])
 
 
 class CommandLine(KendleTest):
