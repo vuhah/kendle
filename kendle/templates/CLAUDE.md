@@ -8,7 +8,7 @@ write. Every session in this workspace reads this file.
     {name}/
       kendle.toml        how kendle runs here
       CLAUDE.md        this file
-      roles/           the six role files (linked into every worktree as .claude/agents)
+      roles/           the role files (linked into every worktree as .claude/agents)
       agent_docs/      one folder per feature: spec, plan, reports (linked into every worktree)
       {repo}/          the main checkout - never worked in directly
       ask/             the Ask desk: a read-only checkout of the latest {upstream}
@@ -87,8 +87,12 @@ or `AUTOPILOT: STUCK <why>` (only a person can unblock it).
 ## 3. The Ask desk and reviews
 
 The Ask desk answers questions on the latest {upstream}, read-only, verdict first. A review session
-reads someone else's change, read-only, and never posts anything - the user decides what to send
-(under autopilot, kendle posts the review's reply on the pull request).
+reads any change - someone else's or your own team's - read-only, and only when you ask: it checks out
+the newest patch set first (`kendle review-sync`), reads earlier reviews and the feature's spec, and
+reviews in rounds with the `kendle-reviewer`, `kendle-review-correctness` and `kendle-review-security`
+roles. It never posts, approves or requests changes. A draft goes out only as an unpublished draft,
+through `kendle review-draft` and `[review] draft`; the user decides what to send (under autopilot,
+kendle posts the review's reply on the pull request).
 
 ## 4. Conventions - obeyed when building, checked in every review
 

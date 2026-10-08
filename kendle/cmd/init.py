@@ -3,13 +3,15 @@
   kendle init                       use the one git checkout in this folder
   kendle init <folder>              use that checkout (a folder in this workspace)
   kendle init --clone <url> [dir]   clone it here first
+  kendle init --roles               in a workspace: add the role files it is missing (a newer kendle's)
   options: --base <branch>  the branch features start from (default: the remote's default branch)
            --dir <path>     the workspace folder (default: the current one)
 
 It writes kendle.toml, a starter CLAUDE.md (the team model; your conventions go in its section 4),
-the six role files in roles/, agent_docs/, and the Ask desk (ask/: a detached checkout of the
+the role files in roles/, agent_docs/, and the Ask desk (ask/: a detached checkout of the
 latest base). Nothing that already exists is overwritten, and the checkout itself is not changed
-beyond fetching it and adding the Ask desk worktree.
+beyond fetching it and adding the Ask desk worktree. A workspace made by an older kendle gets the
+roles added since with `kendle init --roles`; the role files it has are kept as they are.
 """
 import os, subprocess, sys
 from kendle import config
@@ -74,10 +76,32 @@ def write(path, text, made):
     print(f"  wrote    {os.path.relpath(path)}")
 
 
+def add_roles(ws):
+    """Write the role files a workspace is missing - a kendle update can bring new ones - never touching
+    one it has: the team may have edited them."""
+    if not os.path.exists(os.path.join(ws, config.FILE)):
+        raise SystemExit(f"kendle init --roles: {ws} is not a workspace (no {config.FILE}) - run kendle init first")
+    made = []
+    for role in sorted(os.listdir(os.path.join(TEMPLATES, "roles"))):
+        path = os.path.join(ws, "roles", role)
+        if not os.path.exists(path):
+            write(path, open(os.path.join(TEMPLATES, "roles", role)).read(), made)
+    print(f"added {len(made)} role file{'' if len(made) == 1 else 's'}" if made else "every role file is already there")
+    return 0
+
+
 def main(argv):
     if argv and argv[0] in ("-h", "--help"):
         print(__doc__.strip())
         return 0
+    if "--roles" in argv:
+        rest = [a for a in argv if a != "--roles"]
+        if rest[:1] == ["--dir"] and len(rest) == 2:
+            return add_roles(os.path.realpath(rest[1]))
+        if rest:
+            print(__doc__.strip(), file=sys.stderr)
+            return 2
+        return add_roles(os.path.realpath(os.getcwd()))
     opts, rest = {}, []
     i = 0
     while i < len(argv):

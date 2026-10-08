@@ -94,9 +94,10 @@ if route == "pulls" and method == "POST":
                            "merged": False, "head": {"ref": body["head"]}, "base": {"ref": body["base"]},
                            "labels": [], "html_url": f"https://github.com/o/r/pull/{n}"}
     if os.environ.get("FAKE_GH_ORIGIN"):           # as GitHub does: the pull request's head ref
-        import subprocess
+        import subprocess                          # FAKE_GH_LAG: it still points one commit back, as GitHub's can
+        lag = "~1" if os.environ.get("FAKE_GH_LAG") else ""
         subprocess.run(["git", "--git-dir", os.environ["FAKE_GH_ORIGIN"], "update-ref", f"refs/pull/{n}/head",
-                        f"refs/heads/{body['head']}"], check=True)
+                        f"refs/heads/{body['head']}{lag}"], check=True)
     reply(db["pulls"][str(n)])
 m = re.fullmatch(r"pulls/(\d+)", route)
 if m and method == "GET":

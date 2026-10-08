@@ -63,8 +63,29 @@ port = 5432                  # with it, the compose file can publish "${KENDLE_P
 port = 6379
 
 [review]
-# host = "github"            # gerrit, github or gitlab; unset: guessed from the remote's URL
+# host = "github"            # gerrit, github, gitlab, bitbucket or a host below; unset: guessed from the remote
 slots = 3
+inbox_every = 5              # minutes between the console's runs of the inbox commands below (at least 1)
+large = 300                  # changed lines from which a review's findings are saved on close
+# draft = "my-host-cli draft --file {file} {change}"   # `kendle review-draft` runs it to put the
+#                            # findings on the host as an unpublished draft; {patchset} {workspace} too
+
+# What is waiting for your review: a command that prints one change per line,
+# <number or URL>[TAB<head branch>][TAB<title>]. {workspace} is filled in. kendle only lists them
+# (`kendle review` with no change, and the console); you choose which to open.
+# [review.hosts.github]
+# inbox = "gh pr list --search 'review-requested:@me' --json number,headRefName,title --jq '.[] | [.number, .headRefName, .title] | @tsv'"
+
+# A host kendle does not know, by plain git: its family, its change ref ({} is the number) and a URL
+# regex whose group 1 is the number. A URL picks its host by these; a bare number uses `host` above.
+# [review.hosts.forge]
+# family = "branch"          # "branch": diffed against its merge base; "parent": newest patch set, vs HEAD^
+# ref = "refs/forge/{}/head" # for "parent", a glob such as "refs/changes/*/{}/*"
+# url = "/changes/(\\d+)"
+# noun = "forge change"      # how it reads in the sidebar; revision = "at" (or "patch set")
+# inbox = "forge-cli waiting --tsv"
+# draft_kind = "remote"      # "local" where the host has no unpublished drafts (bitbucket's default):
+#                            # review-draft then only writes the file
 
 [task]
 # fetch = "gh issue view {id}"   # `kendle task <id>` runs it; sessions are told they can
@@ -103,7 +124,7 @@ needs = ["test"]
 [prompts]
 # Each session kind starts with a system note; replace any of them here. {fields} are filled in:
 #   all:      {remote} {base} {docs}
-#   manager:  {feature} {path} {branch}     sub, fresh, promote: {feature}     review: {file}
+#   manager:  {feature} {path} {branch}     sub, fresh, promote: {feature}     review: {file} {change}
 # ask = """
 # You are the Ask desk. ...
 # """

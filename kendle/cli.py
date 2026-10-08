@@ -2,8 +2,8 @@
 
   kendle init [<checkout>]     make this folder a workspace (kendle.toml, CLAUDE.md, roles, Ask desk)
   kendle                       open the console (starts it if needed; closing it leaves sessions running)
-  kendle <session command>     list, new, manager, sub, show, stop, adopt, fresh, ask, promote,
-                               review, reviews, review-close - see `kendle help agent`
+  kendle <session command>     list, new, manager, sub, show, stop, adopt, fresh, ask, promote, review,
+                               reviews, review-sync, review-draft, review-close - see `kendle help agent`
   kendle stack ...             the feature's local services (start, stop, logs, ...)
   kendle services [name ...]   which local services are up (checks only)
   kendle disk ...              what the workspace uses, and how to get space back
@@ -21,7 +21,7 @@ TOOLS = {"stack": "stack", "services": "services", "disk": "disk", "gate": "gate
          "autopilot": "autopilot"}
 PANES = {"sidebar": "sidebar", "logs": "logs", "view": "view"}
 SESSION_COMMANDS = {"list", "new", "manager", "sub", "show", "stop", "adopt", "fresh", "ask", "promote",
-                    "review", "reviews", "review-close"}
+                    "review", "reviews", "review-sync", "review-draft", "review-close"}
 
 
 def run(module, name, args):

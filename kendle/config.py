@@ -35,8 +35,12 @@ DEFAULTS = {
         "disabled_plugins": [],    # plugins switched off in kendle's sessions
     },
     "review": {
-        "host": None,              # gerrit, github or gitlab; unset: guessed from the remote's URL
+        "host": None,              # gerrit, github, gitlab, bitbucket or a [review.hosts.<name>]; unset: guessed
         "slots": 3,                # at most this many reviews open side by side
+        "hosts": {},               # [review.hosts.<name>]: family, ref, url, noun, revision, inbox, draft_kind
+        "inbox_every": 5,          # minutes between the console's runs of the hosts' inbox commands
+        "large": 300,              # a change of this many changed lines or more has its findings saved on close
+        "draft": None,             # a command putting {file} on the host as an unpublished draft; {change} {patchset}
     },
     "task": {
         "fetch": None,             # a command that prints a task, {id} replaced: "jira-cli view {id}"
@@ -79,15 +83,30 @@ PROMPTS = {
         "never edit, plan, or start a team. If a change is needed, end with a line "
         "'Suggested feature name: <kebab-case>' and 3 short lines on what to change."),
     "review": (
-        "You are reviewing someone else's change, checked out in this folder (detached, at their latest "
-        "revision). Start with one verdict line - Approve - Comments - Blocked - then the findings, worst "
-        "first, each one line: file:line, what is wrong, and what you would do instead. Plain words, no "
-        "jargon. Check the change against the conventions in the workspace CLAUDE.md and the pattern the "
-        "code already uses in that area. Give the findings in chat; they are saved to "
-        "{docs}/reviews/{file}.md when the user closes the review, so write them as the text they would "
-        "paste to the author.\n"
-        "You are a reader: never edit code, never commit, never push, and never post anything anywhere - "
-        "the user decides what to send and sends it themselves."),
+        "You are reviewing someone else's change, checked out in this folder (detached). Do nothing until "
+        "the user asks for a review. Then, every time:\n"
+        "1. Run `kendle review-sync {change}` first: it checks out the newest patch set (or commit) and says "
+        "what the folder holds - unless the request says the folder already holds the commit to review. Say "
+        "which one you read.\n"
+        "2. Read the earlier reviews of this change, {docs}/reviews/{change}-*.md, and when its branch is a "
+        "feature's, {docs}/<feature>/spec.md.\n"
+        "3. Review in rounds. Round 1: run the kendle-reviewer, kendle-review-correctness and "
+        "kendle-review-security sub-agents on the diff, side by side; they report in chat and write no "
+        "files. Round 2: check every round-1 finding "
+        "against the code, drop the false ones and merge the duplicates.\n"
+        "4. Reply with the context first - earlier work, the situation, the problem the change solves - then "
+        "one verdict line - Approve - Comments - Blocked - then the findings, worst first, each one line: "
+        "file:line, what is wrong, and what you would do instead. When the request asks for the verdict line "
+        "first (kendle autopilot does: it reads the verdict from your reply's first line), give the verdict "
+        "line, then the context, then the findings. Plain words, no jargon. Check the change "
+        "against the conventions in the workspace CLAUDE.md and the pattern the code already uses there. "
+        "Write the findings as the text the user would paste to the author; a large change's are saved to "
+        "{docs}/reviews/{file}.md when the user closes the review.\n"
+        "When the user wants a draft, run `kendle review-draft {change}`: it saves your last reply as a draft "
+        "file and, where kendle.toml says how, puts it on the host as an unpublished draft.\n"
+        "You are a reader: never edit code, never commit, never push, and never post, approve or request "
+        "changes anywhere - the user decides what to send and sends it themselves (under kendle autopilot, "
+        "kendle itself posts your reply on the pull request)."),
     "sub": (
         "You are a read-only sub-agent working for the '{feature}' manager session. "
         "Investigate and report your findings in chat. Do not edit files or change any state."),

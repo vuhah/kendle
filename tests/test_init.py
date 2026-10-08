@@ -22,13 +22,22 @@ class Init(unittest.TestCase):
         for path in ("kendle.toml", "CLAUDE.md", "agent_docs", "ask", "origin"):
             self.assertTrue(os.path.exists(os.path.join(self.ws, path)), path)
         roles = sorted(os.listdir(os.path.join(self.ws, "roles")))
-        self.assertEqual(roles, [f"kendle-{r}.md" for r in ("auditor", "builder", "planner", "reviewer", "shipper", "tester")])
+        self.assertEqual(roles, [f"kendle-{r}.md" for r in ("auditor", "builder", "planner", "review-correctness",
+                                                            "review-security", "reviewer", "shipper", "tester")])
+        for name in ("review-correctness", "review-security"):
+            role = read(os.path.join(self.ws, "roles", f"kendle-{name}.md"))
+            self.assertTrue(role.startswith(f"---\nname: kendle-{name}\ndescription: "), role[:80])
+            self.assertIn("Read only. Never edit, create or delete a file", role)
         toml = read(os.path.join(self.ws, "kendle.toml"))
         self.assertIn('path = "origin"', toml)
         self.assertIn('base = "main"', toml)
         claude = read(os.path.join(self.ws, "CLAUDE.md"))
         self.assertIn("origin/main", claude)
         self.assertNotRegex(claude, r"\{(name|repo|upstream)\}")
+        section3 = claude.split("## 3.")[1].split("## 4.")[0]
+        for words in ("your own team's", "kendle review-sync", "kendle-review-correctness", "kendle-review-security",
+                      "never posts, approves or requests changes", "only as an unpublished draft"):
+            self.assertIn(words, " ".join(section3.split()))
         self.assertEqual(sh("git", "-C", os.path.join(self.ws, "ask"), "rev-parse", "--abbrev-ref", "HEAD").stdout.strip(), "HEAD")
 
     def test_existing_checkout_and_refusals(self):
@@ -43,6 +52,23 @@ class Init(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("kept     CLAUDE.md", r.stdout)
         self.assertEqual(read(os.path.join(self.ws, "CLAUDE.md")), "mine\n")
+
+    def test_roles_adds_only_the_missing_role_files(self):
+        self.assertIn("kendle init --roles", self.init("--help").stdout)
+        self.assertIn("is not a workspace", self.init("--roles").stderr)
+        self.assertEqual(self.init("--clone", self.w.origin).returncode, 0)
+        roles = os.path.join(self.ws, "roles")
+        os.remove(os.path.join(roles, "kendle-review-security.md"))      # a workspace from before that role
+        with open(os.path.join(roles, "kendle-builder.md"), "w") as f:
+            f.write("ours\n")
+        r = self.init("--roles")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("wrote    roles/kendle-review-security.md", r.stdout)
+        self.assertIn("added 1 role file", r.stdout)
+        self.assertNotIn("kendle-builder", r.stdout)
+        self.assertEqual(read(os.path.join(roles, "kendle-builder.md")), "ours\n")
+        self.assertIn("Read only.", read(os.path.join(roles, "kendle-review-security.md")))
+        self.assertIn("every role file is already there", self.init("--roles").stdout)
 
     def test_errors_a_user_can_act_on(self):
         self.assertIn("no git checkout in this folder", self.init().stderr)
