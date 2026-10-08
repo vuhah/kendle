@@ -268,5 +268,160 @@ class SidebarRows(KendleTest):
         self.assertIn(["working", "green"], self.draw("internal", "working"))
 
 
+class FitScreen(KendleTest):
+    """core.fit_screen repaints the whole pane only when it must: at start-up, when the real size
+    changed since it last fitted the pane, or when the size cannot be read - and it never raises.
+
+    Curses is faked as it behaves with LINES and COLUMNS exported: on every resize ncurses hands the
+    pane back its pinned 50x34 first, and only resize_term gives it the real size."""
+
+    def clears(self, steps):
+        """Run fit_screen once per (start, real size) step; a size of None fails the size read, "error"
+        makes resize_term fail. Returns how often each step cleared the screen."""
+        return self.w.py(f"""
+            import curses, os
+            from kendle import core
+            class Scr:
+                clears, size = 0, (50, 34)
+                def getmaxyx(self):
+                    return self.size
+                def clear(self):
+                    self.clears += 1
+            real = [None]
+            def size(fd):
+                if real[0] is None:
+                    raise OSError("not a terminal")
+                return os.terminal_size((34, real[0]) if real[0] != "error" else (34, 1))
+            def resize_term(lines, cols):
+                if real[0] == "error":
+                    raise curses.error("resize_term failed")
+                scr.size = (lines, cols)
+            os.get_terminal_size, curses.resize_term, curses.update_lines_cols = size, resize_term, lambda: None
+            scr, out = Scr(), []
+            for start, lines in {steps!r}:
+                real[0], before, scr.size = lines, scr.clears, (50, 34)
+                core.fit_screen(scr, start)
+                out.append(scr.clears - before)
+            print(json.dumps(out))
+        """)
+
+    def test_start_up_clears_and_an_unchanged_size_does_not(self):
+        self.assertEqual(self.clears([(True, 40), (False, 40), (False, 40), (True, 40)]), [1, 0, 0, 1])
+
+    def test_a_changed_size_clears_once(self):
+        self.assertEqual(self.clears([(True, 40), (False, 60), (False, 60), (False, 50), (False, 50)]), [1, 1, 0, 1, 0])
+
+    def test_a_failed_size_read_clears_and_does_not_raise(self):
+        self.assertEqual(self.clears([(True, 40), (False, None), (False, "error"), (False, 40)]), [1, 1, 1, 1])
+
+
+def bottom_rows(frame):
+    """How many rows at the foot of a sidebar frame keep to the bottom: from the detail separator
+    down (the detail lines, then the key hint or a message wrapped over up to MSG_LINES rows)."""
+    seps = [i for i, line in enumerate(frame) if line.strip().startswith("─")]
+    return len(frame) - seps[-1] if seps else 1
+
+
+class ConsoleResize(KendleTest):
+    """A resized window repaints the sidebar and the logs column whole, at the new size.
+
+    The console starts with LINES and COLUMNS exported (as some shells do), pinned to the sidebar's
+    first size: curses then believes them over the terminal, so only reading the real size on a
+    resize keeps the frame right - without it old rows stay and the header scrolls away."""
+
+    SIDEBAR = "kendle:console.0"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.w.py("from kendle import core; core.ensure_session()", KENDLE_NO_SIDEBAR="0", LINES="50", COLUMNS="34")
+
+    def setUp(self):
+        self.w.py("from kendle import core; core.set_sidebar_width(34)")
+        self.w.tmux("resize-window", "-t", "kendle:console", "-x", "200", "-y", "50")
+        self.w.tmux("resize-pane", "-t", self.SIDEBAR, "-x", "34")
+        self.w.tmux("respawn-pane", "-k", "-t", self.SIDEBAR)
+        self.settle(self.SIDEBAR)
+
+    def capture(self, pane):
+        out = sh("tmux", "-L", self.w.socket, "capture-pane", "-p", "-t", pane, check=False).stdout
+        return out[:-1].split("\n") if out.endswith("\n") else out.split("\n")
+
+    def size(self, pane):
+        w, h = self.w.tmux("display", "-p", "-t", pane, "#{pane_width} #{pane_height}").split()
+        return int(w), int(h)
+
+    def settle(self, pane):
+        """The pane's frame once two captures in a row agree."""
+        time.sleep(0.5)
+        last = [None]
+
+        def same():
+            now = self.capture(pane)
+            done, last[0] = now == last[0] and any(line.strip() for line in now), now
+            return done
+        self.assertTrue(wait_for(same, timeout=15, step=0.4), "the pane never settled:\n" + "\n".join(last[0] or []))
+        return last[0]
+
+    def assert_clean(self, old, new, pane, header, bottom):
+        """No row of the old frame left where the new frame does not draw it: rows from the top keep
+        their row, the bottom `bottom` rows move with the new height; the header is on row 0 only."""
+        width, height = self.size(pane)
+        shown = "\n".join(new)
+        self.assertEqual(len(new), height, shown)
+        self.assertTrue(all(len(line) <= width for line in new), shown)
+        heads = [i for i, line in enumerate(new) if line.split()[:1] == [header]]
+        self.assertEqual(heads, [0], shown)
+        for row, line in enumerate(new):
+            was = [i for i, o in enumerate(old) if line.strip() and o == line]
+            if was:
+                want = [i if i < len(old) - bottom else i - len(old) + height for i in was]
+                self.assertIn(row, want, f"row {row} {line!r} is left from the old frame:\n{shown}")
+
+    def resize_and_check(self, x, y, pane=None, header="ws", bottom=None):
+        pane = pane or self.SIDEBAR
+        old = self.capture(pane)
+        self.w.tmux("resize-window", "-t", "kendle:console", "-x", str(x), "-y", str(y))
+        self.assert_clean(old, self.settle(pane), pane, header, bottom or bottom_rows(old))
+
+    def test_taller_and_shorter_windows_repaint_the_sidebar(self):
+        self.resize_and_check(200, 70)
+        self.resize_and_check(200, 30)
+
+    def test_a_height_only_resize_repaints_the_sidebar(self):
+        self.resize_and_check(200, 40)
+        self.assertEqual(self.size(self.SIDEBAR), (34, 40))
+
+    def test_wider_and_narrower_windows_keep_the_chosen_width(self):
+        self.resize_and_check(250, 60)
+        self.resize_and_check(150, 40)
+        self.assertEqual(self.size(self.SIDEBAR)[0], 34)
+
+    def test_the_logs_column_repaints_too(self):
+        logs = self.w.py("""
+            from kendle import core
+            core.ui_set("logs_mode", "off")
+            core.toggle_logs(True)
+            print(json.dumps(core.tmux("show", "-gqv", "@kendle_logs")))""")
+        self.addCleanup(self.w.py, "from kendle import core; core.toggle_logs(False); core.ui_set('logs_mode', 'auto')")
+        self.settle(logs)
+        self.resize_and_check(200, 30, pane=logs, header="logs", bottom=1)
+        self.resize_and_check(200, 70, pane=logs, header="logs", bottom=1)
+
+    def test_a_resize_right_after_a_respawn_settles_clean(self):
+        old = self.capture(self.SIDEBAR)
+        self.w.tmux("respawn-pane", "-k", "-t", self.SIDEBAR)
+        self.w.tmux("resize-window", "-t", "kendle:console", "-x", "200", "-y", "35")
+        self.assert_clean(old, self.settle(self.SIDEBAR), self.SIDEBAR, "ws", bottom_rows(old))
+
+    def test_a_dragged_width_survives_a_window_resize(self):
+        width = lambda: self.w.py("from kendle import core; print(core.sidebar_width())")
+        self.w.tmux("resize-pane", "-t", self.SIDEBAR, "-x", "40")
+        self.assertEqual(wait_for(lambda: width() == 40 and 40), 40)
+        self.w.tmux("resize-window", "-t", "kendle:console", "-x", "220", "-y", "45")
+        self.assertTrue(wait_for(lambda: self.size(self.SIDEBAR)[0] == 40), self.size(self.SIDEBAR))
+        self.assertEqual(width(), 40)
+
+
 if __name__ == "__main__":
     unittest.main()

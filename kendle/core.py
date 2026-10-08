@@ -4,7 +4,7 @@ Shared by every kendle subcommand (CLI, curses sidebar, viewer). Python 3.9 stdl
 Every tmux call goes to a socket of its own per workspace (tmux -L kendle-<hash>), so the
 console never touches any other tmux use on this machine, nor another workspace's console.
 """
-import calendar, contextlib, datetime, fcntl, glob, hashlib, json, os, re, shutil, subprocess, time, uuid
+import calendar, contextlib, datetime, fcntl, glob, hashlib, json, os, re, shutil, subprocess, sys, time, uuid
 from kendle import config
 
 HUB      = config.find_workspace()
@@ -178,6 +178,34 @@ def ensure_session():
             tmux("set", "-g", "@kendle_idle", idle)
         tmux("resize-pane", "-t", f"{SESSION}:console.0", "-x", str(sidebar_width()))
     # the logs column is put up by the sidebar when the selected feature's services run (logs_mode)
+
+
+_FITTED = {}                                          # id(scr) -> the (lines, columns) fit_screen last gave it
+
+
+def fit_screen(scr, start=False):
+    """Tell curses the terminal's real size, and repaint the whole screen on the next refresh at
+    start-up, when that size differs from the one this pane was last fitted to, or when the size
+    cannot be read (nothing then says the screen is right). Called by the curses panes at start-up
+    and on every resize: curses may hold a stale size (LINES and COLUMNS in the environment win
+    over the terminal, and ncurses hands that stale size back on every resize), and erase() alone
+    leaves rows it does not know about. The size is compared with the last one fitted, not with
+    curses' own, so a resize signal that leaves the pane's size alone does not flicker it."""
+    import curses
+    try:
+        size = os.get_terminal_size(sys.__stdout__.fileno())
+        curses.resize_term(size.lines, size.columns)
+        curses.update_lines_cols()
+        changed = _FITTED.get(id(scr)) != (size.lines, size.columns)
+        _FITTED[id(scr)] = (size.lines, size.columns)
+    except (curses.error, OSError, ValueError, AttributeError):
+        _FITTED.pop(id(scr), None)                    # never crash a pane over a repaint
+        changed = True
+    if start or changed:
+        try:
+            scr.clear()
+        except curses.error:
+            pass
 
 
 def sidebar_width():
