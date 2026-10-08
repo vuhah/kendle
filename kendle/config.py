@@ -98,6 +98,10 @@ PROMPTS = {
     "fresh": (
         "You are this feature's manager, starting fresh after a restart. Read {docs}/{feature}/team.md "
         "first, then only the docs you need. Continue from the stage it records."),
+    "stack": (
+        "This folder is read-only, but you may run kendle stack commands (start, stop, restart, wait, "
+        "status, logs) for its own services even in plan mode: they are allowed and change no files here. "
+        "The services share this machine's database: never seed or change rows unless the user asks."),
     "promote": (
         "New feature, promoted from an Ask-desk question. The question, what the desk found and the "
         "whole conversation are in {docs}/{feature}/requirement.md. Start the planner with it."),

@@ -2,15 +2,16 @@
 
   j k / click   select            Enter  show it on the right      Tab   type into it
   h l           fold / unfold     a      ask on the latest base    p     promote a question
-  m             start manager     n      new feature               s     read-only sub-agent
-  K             stop session      < >    narrower / wider          r     refresh
-  q             close the console (every session keeps running)
+  m             start manager     n      new feature               K     stop session
+  s read-only sub-agent · S start/stop the desk's or a review's services
+                (a desk stack started with S stops when the next question moves the desk, and when it closes)
+  < >           narrower / wider  r      refresh                   q     close the console (sessions keep running)
 """
-import curses, json, locale, os, signal, sys, textwrap, threading, time, traceback
+import curses, json, locale, os, signal, subprocess, sys, textwrap, threading, time, traceback
 os.environ.setdefault("ESCDELAY", "25")
 if not any(os.environ.get(k) for k in ("LC_ALL", "LC_CTYPE", "LANG")):
     os.environ["LC_CTYPE"] = "en_US.UTF-8"
-from kendle import config, core
+from kendle import config, core, services
 from kendle import stack as _stack
 
 REFRESH = 2.0
@@ -104,12 +105,12 @@ class Sidebar:
         self.busy, self.job_done = None, False
         self.slot, self.free, self.loaded = None, None, 0
         self.window_width = None
-        self.desk, self.questions, self.pending_show = None, [], None
+        self.desk, self.questions, self.pending_show, self.pending_focus = None, [], None, True
         self.reviews = []
         self.autopilot, self.autopilot_said = [], autopilot_note()
         self.rss, self.need_you = {}, 0
         self.pending_data, self.wake = None, threading.Event()
-        self.stacks, self.logs_shown = set(), False   # features whose services run; is the column up?
+        self.stacks, self.logs_shown = set(), False   # folders whose services run; is the column up?
         self.idle_checked = self.disk_checked = self.config_checked = 0
         self.config_mtime = self.toml_mtime()
 
@@ -248,6 +249,26 @@ class Sidebar:
     def current(self):
         return next((r for r in self.rows if r.get("key") == self.sel and r["kind"] in SELECTABLE), None)
 
+    @staticmethod
+    def stack_of(r):
+        """The folder whose services a row stands for: its feature, the Ask desk, or its review folder."""
+        if not r:
+            return None
+        if r.get("f"):
+            return r["f"]["name"]
+        if r["kind"] in ("desk", "question"):
+            return _stack.desk_name()
+        return r["e"]["feature"] if r["kind"] == "review" else None
+
+    def stack_line(self, name):
+        """'stack N · <url>' for a folder whose services run, with the login warning; '' otherwise."""
+        if name not in self.stacks:
+            return ""
+        slot = _stack.slot_of(name)
+        other = services.shares_host(slot)
+        return f"stack {slot + 1} · {_stack.url_of(name)}" + \
+            (f" · shares logins with stack {other + 1}" if other is not None else "")
+
     def say(self, text, error=False):
         self.msg, self.err = text, error
 
@@ -304,8 +325,8 @@ class Sidebar:
             self.row_at[TOP + n] = r
             self.row(TOP + n, r, r.get("key") == self.sel and r["kind"] in SELECTABLE, w)
         self.detail(detail_y, w)
-        r = self.current()                            # tell the logs column which feature is selected
-        f = r["f"]["name"] if r and r.get("f") else None
+        r = self.current()                            # tell the logs column which folder is selected
+        f = self.stack_of(r)
         if f and f != getattr(self, "focus_sent", None):
             self.focus_sent = f
             core.ui_set("focus_feature", f)
@@ -396,6 +417,7 @@ class Sidebar:
         if not r:
             return
         kind, e = r["kind"], r.get("e")
+        running = self.stack_line(self.stack_of(r)) if kind in ("desk", "question", "review") else ""
         if kind == "desk":
             d = self.desk
             line1, line2 = f"Ask desk - questions on the latest {core.BASE}", f"{core.BASE} @ {d['sha']} · {d['date']}" + (f" · {d['behind']} behind" if d["behind"] else "")
@@ -427,6 +449,8 @@ class Sidebar:
             else:
                 title = f"{r['f']['name']} / {'manager' if kind == 'manager' else e['name']}"
             line1, line2 = title or "", " · ".join(x for x in parts if x)
+        if running:                                   # its services matter more than the session's numbers
+            line2 = running + " · " + line2
         self.put(y + 1, 2, fit(line1, w - 4), "bright")
         self.put(y + 2, 2, fit(line2, w - 4), "dim")
 
@@ -603,12 +627,13 @@ class Sidebar:
         if not text:
             self.say("cancelled")
             return
-        e = core.start_question(text)
         self.folded.discard("desk")
-        self.refresh_now()
-        self.sel = e["id"]
-        self.show(e, focus=False)
-        self.say("asking - Tab or Ctrl-q to follow up")
+
+        def job():                                    # moving the desk may first stop its services
+            e = core.start_question(text)
+            self.pending_focus = False                # set before pending_show: the key loop reads both
+            self.pending_show = e
+        self.background("asking…", job, "asking - Tab or Ctrl-q to follow up")
 
     def promote(self):
         r = self.current()
@@ -654,12 +679,59 @@ class Sidebar:
         if not r or r["kind"] not in ("manager", "sub", "question") or not e.get("pane"):
             self.say("nothing running here to stop")
             return
-        if self.confirm(f"stop {core.label(e)}?"):
+        if not self.confirm(f"stop {core.label(e)}?"):
+            self.say("cancelled")
+        elif r["kind"] == "question":                 # the last question closing stops the desk's services
+            self.background(f"stopping {core.label(e)}…", lambda: core.stop(e["id"]), f"stopped {core.label(e)}")
+        else:
             core.stop(e["id"])
             self.refresh_now()
             self.say(f"stopped {core.label(e)}")
-        else:
-            self.say("cancelled")
+
+    def stack_cli(self, *args):
+        """Through the kendle stack command from the workspace folder, as the logs column does: the
+        services are never this pane's children, and the command's own rules and messages apply."""
+        r = subprocess.run([core.KENDLE, "stack", *args], cwd=core.HUB, capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL)
+        if r.returncode:
+            raise RuntimeError(((r.stderr or r.stdout).strip().splitlines() or ["kendle stack failed"])[-1])
+
+    def stack_toggle(self):
+        """S: start or stop the services of the selected desk, question or review. A feature's are the team's."""
+        r = self.current()
+        if r and r.get("f"):
+            self.say("the team runs a feature's services - kendle stack")
+            return
+        name = self.stack_of(r)
+        if not name:
+            self.say("select the Ask desk, a question or a review, then S")
+            return
+        if name in self.stacks:
+            if not self.confirm(f"stop the services of {name}?"):
+                self.say("cancelled")
+                return
+            self.background(f"stopping the services of {name}…",
+                            lambda: self.stack_cli("stop", "-f", name, "--why", "stopped from the panel"),
+                            f"{name}: services stopped")
+            return
+        try:
+            with open(os.path.join(_stack.STATE, name, "stack.json")) as fh:
+                saved = json.load(fh).get("services", [])
+        except (OSError, ValueError):
+            saved = []
+        names = []
+        if not saved:
+            startable = " ".join(n for n in _stack.SERVICES if services.startable(n))
+            if not startable:
+                self.say("no services to start - define them in kendle.toml [services]", error=True)
+                return
+            names = self.ask(f"start in {name} ({startable}): ").split()
+            if not names:
+                self.say("cancelled")
+                return
+        self.background(f"starting the services of {name}…", lambda: self.stack_cli("start", "-f", name, *names),
+                        f"{name}: services starting" + (" - they stop when the next question moves the desk,"
+                                                          " and when it closes" if name == _stack.desk_name() else ""))
 
     def keep_width(self):
         """Keep the width the user chose: re-apply it when the window resizes, and remember a
@@ -689,7 +761,7 @@ class Sidebar:
                 freed, _ = disk.enforce()
                 if freed:
                     self.say(f"hub was {used:.0f}G of its {cap}G budget - trimmed {freed:.0f}G of caches "
-                             "from features nobody has touched (code and uncommitted work kept)")
+                             "from folders nobody has touched (code and uncommitted work kept)")
                 else:
                     self.say(f"hub {used:.0f}G is over its {cap}G budget and everything is in use - "
                              "finish or delete a feature", error=True)
@@ -709,12 +781,11 @@ class Sidebar:
             self.say(f"idle check failed: {err}", error=True)
 
     def sync_logs(self):
-        """The logs column follows the selection: up while the selected feature's services run, gone
-        otherwise. Nothing happens when the user switched it off with L."""
+        """The logs column follows the selection: up while the selected feature's, desk's or review's
+        services run, gone otherwise. Nothing happens when the user switched it off with L."""
         if core.ui_get("logs_mode", "auto") != "auto":
             return
-        r = self.current()
-        name = r["f"]["name"] if r and r.get("f") else None
+        name = self.stack_of(self.current())
         want = bool(name and name in self.stacks)
         if want != self.logs_shown:
             try:
@@ -731,7 +802,7 @@ class Sidebar:
             self.say("logs column off - L makes it automatic again")
         else:
             core.ui_set("logs_mode", "auto")
-            self.say("logs column automatic - it appears when the selected feature's services run")
+            self.say("logs column automatic - it appears when the selected row's services run")
             self.sync_logs()
 
     def resize_by(self, delta):
@@ -794,7 +865,7 @@ class Sidebar:
         actions = {"<": lambda: self.resize_by(-4), ">": lambda: self.resize_by(4), "g": self.new_review,
                    "L": self.toggle_logs,
                    "a": self.new_question, "p": self.promote, "m": self.manager, "s": self.sub, "n": self.new,
-                   "K": self.stop, "r": self.refresh_now,
+                   "K": self.stop, "S": self.stack_toggle, "r": self.refresh_now,
                    "\t": lambda: self.enter(focus=True), "\n": self.enter, "\r": self.enter,
                    curses.KEY_ENTER: self.enter, curses.KEY_MOUSE: self.mouse,
                    "j": lambda: self.move(1), curses.KEY_DOWN: lambda: self.move(1),
@@ -819,11 +890,14 @@ class Sidebar:
                 data, self.pending_data = self.pending_data, None
                 self.apply(data)
             self.sync_logs()
-            if self.pending_show:                     # a promoted question's new manager
+            if self.pending_show:                     # e.g. a promoted question's new manager
                 e, self.pending_show = self.pending_show, None
+                focus, self.pending_focus = self.pending_focus, True
                 self.sel = e["id"]
+                if e["kind"] == "question":
+                    self.folded.discard("desk")
                 try:
-                    self.show(e, focus=True)
+                    self.show(e, focus=focus)
                 except RuntimeError as err:
                     self.say(str(err), error=True)
             self.draw()
