@@ -137,6 +137,65 @@ class Flow(Base):
         self.assertTrue(self.session("review").get("released"))
 
 
+    def test_the_review_is_asked_each_round_on_the_commit_kendle_pushed_not_a_lagging_ref(self):
+        self.gh_seed([issue(7, "Ask the review")])
+        self.once()
+        manager = self.session("manager", "issue-7")
+        self.commit("issue-7", "ask.txt", "ask")
+        self.reply(manager, "AUTOPILOT: READY")
+        self.once()
+        review = self.session("review")
+        self.assertEqual(self.w.git(review["cwd"], "rev-parse", "HEAD"), self.rec(7)["sha"])
+        opened = wait_for(lambda: [c for c in self.w.claude_calls() if "--session-id" in c["args"]
+                                   and review["id"] in c["args"]])[0]["args"]
+        self.assertIn("Round 1 of 3: review pull request #", opened[0])     # its first message: opening does not review
+        self.assertIn("Do not run `kendle review-sync`", opened[0])
+        self.assertIn("verdict line first", opened[0])
+
+        # The fake GitHub moves refs/pull/<n>/head only when the pull request opens: from round 2 on it
+        # lags behind what kendle pushed, as GitHub's can.
+        def next_round(n, message, gone=False):
+            self.reply(review, "Comments\n- ask.txt:1 - say more")
+            self.once()
+            if gone:                                                     # stopped when the next round comes
+                self.w.tmux("kill-pane", "-t", review["pane"])
+            self.w.git(os.path.join(self.w.ws, "issue-7"), "commit", "-q", "--amend", "-m", message)
+            self.reply(manager, "Fixed.\nAUTOPILOT: READY")
+            self.once()
+            rec = self.rec(7)
+            self.assertEqual((rec["phase"], rec["round"]), ("reviewing", n))
+            self.assertEqual(rec["sha"], self.w.git(os.path.join(self.w.ws, "issue-7"), "rev-parse", "HEAD"))
+            self.assertEqual(self.w.git(review["cwd"], "rev-parse", "HEAD"), rec["sha"])
+            row = self.session("review")                                 # the row names what the folder holds
+            self.assertEqual((row["head"], row["patchset"], row["subject"]), (rec["sha"], rec["sha"][:8], message))
+
+        next_round(2, "Ask the review again", gone=True)
+        resumed = wait_for(lambda: [c for c in self.w.claude_calls() if "--resume" in c["args"]
+                                    and review["id"] in c["args"]])[0]["args"]
+        self.assertIn("Round 2 of 3: the author pushed", resumed[0])
+        self.assertIn("Do not run `kendle review-sync`", resumed[0])
+
+        review = self.session("review")                                      # still open: the request is typed in
+        next_round(3, "Ask the review a third time")
+        screen = lambda: self.w.tmux("capture-pane", "-p", "-J", "-t", review["pane"])
+        self.assertTrue(wait_for(lambda: "Round 3 of 3: the author pushed" in screen()), screen())
+        self.assertTrue(wait_for(lambda: "Do not run `kendle review-sync`" in screen()), screen())
+
+    def test_the_first_review_opens_on_the_pushed_commit_even_when_the_ref_lags_at_once(self):
+        self.gh_seed([issue(9, "Lagging ref")])
+        self.once()
+        manager = self.session("manager", "issue-9")
+        self.commit("issue-9", "lag.txt", "lag")
+        self.reply(manager, "AUTOPILOT: READY")
+        self.w.kendle("autopilot", "once", FAKE_GH_LAG="1", **self.env())
+        rec = self.rec(9)
+        pr_ref = self.w.git(self.w.origin, "rev-parse", f"refs/pull/{rec['pr']}/head")
+        self.assertNotEqual(pr_ref, rec["sha"])                              # GitHub's ref is behind
+        review = self.session("review")
+        self.assertEqual(self.w.git(review["cwd"], "rev-parse", "HEAD"), rec["sha"])
+        self.assertEqual(review["head"], rec["sha"])
+
+
 class Limits(Base):
     ROUNDS = 1
 

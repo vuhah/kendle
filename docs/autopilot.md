@@ -24,8 +24,9 @@ request, the merge), `git push`, the gate, rebasing, the round count. The agents
   It runs with edits accepted and the shell commands in `[autopilot] allow`; `git push` and `gh`
   are always denied. It never needs a human: in autopilot mode the manager stands in for the user
   at the spec, the plan and the push (kendle pushes).
-- the **reviewer** is a normal read-only kendle review of the pull request. Its reply - verdict line
-  first: Approve, Comments or Blocked - is posted on the pull request by kendle.
+- the **reviewer** is a normal read-only kendle review of the pull request. Opening it does not
+  review: kendle asks it each round. Its reply - verdict line first: Approve, Comments or Blocked -
+  is posted on the pull request by kendle.
 
 kendle never starts a session with permission checks switched off.
 

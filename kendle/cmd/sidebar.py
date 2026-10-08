@@ -3,21 +3,22 @@
   j k / click   select            Enter  show it on the right      Tab   type into it
   h l           fold / unfold     a      ask on the latest base    p     promote a question
   m             start manager     n      new feature               s     read-only sub-agent
-  K             stop session      < >    narrower / wider          r     refresh
+  K             stop / close /    < >    narrower / wider          r     refresh
+                dismiss
   q             close the console (every session keeps running)
 """
 import curses, json, locale, os, signal, sys, textwrap, threading, time, traceback
 os.environ.setdefault("ESCDELAY", "25")
 if not any(os.environ.get(k) for k in ("LC_ALL", "LC_CTYPE", "LANG")):
     os.environ["LC_CTYPE"] = "en_US.UTF-8"
-from kendle import config, core
+from kendle import config, core, review
 from kendle import stack as _stack
 
 REFRESH = 2.0
 TOP = 2                                              # first row of the list
 MSG_LINES = 3                                        # messages and prompts wrap over up to 3 lines
 DETAIL = 3                                           # separator + 2 lines about the selected row
-SELECTABLE = {"desk", "question", "review", "feature", "manager", "sub", "internal", "idlehdr", "idle"}
+SELECTABLE = {"desk", "question", "review", "detected", "feature", "manager", "sub", "internal", "idlehdr", "idle"}
 STATE_COLOR = {"waiting": "yellow", "answered": "yellow", "trust?": "yellow", "working": "green", "starting": "green"}
 
 
@@ -91,6 +92,12 @@ def autopilot_note():
         return ""
 
 
+def inbox_every():
+    """Seconds between the console's runs of the inbox commands: [review] inbox_every minutes, never
+    under one - a 0 or a typo must not run every host's command on every tick."""
+    return max(60, 60 * float(core.CONFIG["review"]["inbox_every"]))
+
+
 class Sidebar:
     def __init__(self, scr):
         self.scr = scr
@@ -105,12 +112,13 @@ class Sidebar:
         self.slot, self.free, self.loaded = None, None, 0
         self.window_width = None
         self.desk, self.questions, self.pending_show = None, [], None
-        self.reviews = []
+        self.reviews, self.detected = [], []
+        self.inbox_errors = set()                     # inbox failures already said, each said once
         self.autopilot, self.autopilot_said = [], autopilot_note()
         self.rss, self.need_you = {}, 0
         self.pending_data, self.wake = None, threading.Event()
         self.stacks, self.logs_shown = set(), False   # features whose services run; is the column up?
-        self.idle_checked = self.disk_checked = self.config_checked = 0
+        self.idle_checked = self.disk_checked = self.config_checked = self.inbox_checked = 0
         self.config_mtime = self.toml_mtime()
 
     # ---- kendle.toml ----
@@ -154,6 +162,7 @@ class Sidebar:
             f["status"] = ("needs you" if fresh else "working" if busy else "ready" if live else "")
             f["_active"] = bool(live or working)
         return {"tree": tree, "desk": core.desk(), "questions": core.questions(), "reviews": core.reviews(),
+                "detected": core.detected(),
                 "slot": core.display_pane(snap),
                 "panes": set(snap[1]), "free": core.free_gb(), "rss": core.rss_by_pane(),
                 "stacks": set(_stack.running_stacks()), "autopilot": autopilot_rows()}
@@ -169,7 +178,7 @@ class Sidebar:
 
     def apply(self, data):
         self.tree, self.desk, self.questions = data["tree"], data["desk"], data["questions"]
-        self.reviews = data["reviews"]
+        self.reviews, self.detected = data["reviews"], data["detected"]
         self.slot, self.free, self.rss = data["slot"], data["free"], data["rss"]
         self.stacks, self.autopilot = data["stacks"], data["autopilot"]
         note = autopilot_note()
@@ -207,10 +216,12 @@ class Sidebar:
             rows.append({"kind": "gap"})
             rows += [dict(a, kind="aprow") for a in self.autopilot]
             rows.append({"kind": "gap"})
-        if self.reviews:
-            rows.append({"kind": "header", "text": f"REVIEW  {len(self.reviews)} of {core.REVIEW_SLOTS}"})
+        if self.reviews or self.detected:
+            waiting = f" · {len(self.detected)} waiting" if self.detected else ""
+            rows.append({"kind": "header", "text": f"REVIEW  {len(self.reviews)} of {core.REVIEW_SLOTS}{waiting}"})
             rows.append({"kind": "gap"})
             rows += [{"kind": "review", "key": r["id"], "e": r} for r in self.reviews]
+            rows += [{"kind": "detected", "key": f"d:{d['host']}:{d['change']}", "e": d} for d in self.detected]
             rows.append({"kind": "gap"})
         rows.append({"kind": "header", "text": f"ACTIVE  {len(active)}" if active else "ACTIVE  nothing running"})
         rows.append({"kind": "gap"})
@@ -369,11 +380,20 @@ class Sidebar:
             used = self.right(y, w, f"{p:>3}%" if p is not None else "    ", "faint" if ctx_color(p) == "dim" else ctx_color(p), sel)
             shown = fit(state, 10)
             self.put(y, w - used - len(shown) - 3, shown,
-                     {"reviewed": "yellow", "trust?": "yellow", "reading": "green", "starting": "green"}.get(state, "faint"), sel)
+                     {"reviewed": "yellow", "open": "yellow", "trust?": "yellow", "reading": "green",
+                      "starting": "green"}.get(state, "faint"), sel)
             self.put(y, 2, "›", "faint", sel)
             label = f"{e['change']}/{e['patchset']} {e['subject']}"
             self.put(y, 4, fit(label, w - used - len(shown) - 9), "text" if state != "closed" else "dim", sel,
                      curses.A_BOLD if on_screen else 0)
+            return
+        if kind == "detected":                        # waiting for review: nothing runs until you open it
+            used = self.right(y, w, "detected", "faint", sel)
+            if e.get("own"):
+                own = fit(f"own: {e['own']}", max(0, w // 2 - used))
+                used += self.right(y, w - used - 1, own, "cyan", sel) + 1
+            self.put(y, 2, "·", "faint", sel)
+            self.put(y, 4, fit(f"{e['change']}/{e['patchset']} {e.get('title') or ''}", w - used - 9), "dim", sel)
             return
         # session rows: manager, sub, internal, question
         indent = {"manager": 6, "question": 4}.get(kind, 8)
@@ -404,6 +424,10 @@ class Sidebar:
         elif kind in ("feature", "idle"):
             f = r["f"]
             line1, line2 = f["name"], f"branch {f['branch']}"
+        elif kind == "detected":
+            line1 = review.title(dict(e, subject=e.get("title") or ""))
+            line2 = " · ".join(x for x in [f"own: {e['own']}" if e.get("own") else "", "Enter opens it",
+                                           "K dismisses it"] if x)
         else:
             ctx = e.get("ctx")
             model = (ctx or {}).get("model", "").replace("claude-", "")
@@ -421,7 +445,6 @@ class Sidebar:
             if kind == "question":
                 title = e.get("question") or ""
             elif kind == "review":
-                from kendle import review
                 title = review.title(e)
                 parts = [f"by {e['author']}", f"{e['files']} files"] + parts
             else:
@@ -526,6 +549,10 @@ class Sidebar:
                 def job(change=e["change"]):
                     self.pending_show = core.start_review(change)
                 self.background(f"reopening review {e['change']}…", job, f"review {e['change']} is back")
+        elif kind == "detected":                      # open it in a slot, on the host it was detected from
+            def job(change=e["change"], host=e["host"]):
+                self.pending_show = core.start_review(change, host=host)
+            self.background(f"opening {e['change']}…", job, f"review {e['change']} open - ask it to review when ready")
         elif kind == "question":
             if e.get("pane") and (e["state"] != "closed" or e["pane"] == self.slot):
                 self.show(e, focus)
@@ -596,7 +623,7 @@ class Sidebar:
         def job():
             e = core.start_review(change)
             self.pending_show = e
-        self.background(f"fetching change {change}…", job, f"change {change} checked out - reading it now")
+        self.background(f"fetching change {change}…", job, f"change {change} checked out - ask it to review when ready")
 
     def new_question(self):
         text = self.ask(f"ask (on latest {core.BASE}): ")
@@ -644,6 +671,11 @@ class Sidebar:
     def stop(self):
         r = self.current()
         e = r and r.get("e")
+        if r and r["kind"] == "detected":
+            core.dismiss(e["change"], host=e["host"])
+            self.refresh_now()
+            self.say(f"{e['change']} dismissed until a newer revision of it shows up")
+            return
         if r and r["kind"] == "review":
             if self.confirm(f"close review {e['change']}/{e['patchset']} and free its folder?"):
                 self.background(f"closing review {e['change']}…", lambda: core.release_review(e["id"]),
@@ -697,6 +729,21 @@ class Sidebar:
                 self.say(f"disk {free}G free - kendle disk shows what can go", error=True)
         except Exception as err:
             self.say(f"disk check failed: {err}", error=True)
+
+    def watch_inbox(self):
+        """Run the hosts' inbox commands, on a thread of its own: what they list shows as detected
+        rows; nothing is opened. A failure is said once, until it is fixed and breaks again."""
+        if os.environ.get("KENDLE_STATE"):                # a test console: never run the user's commands
+            return
+        try:
+            _, errors = core.poll_inbox()
+        except Exception as err:
+            errors = [f"inbox check failed: {err}"]
+        for err in errors:
+            if err not in self.inbox_errors:
+                self.say(err, error=True)
+        self.inbox_errors = set(errors)
+        self.wake.set()                               # show what it found at once
 
     def stop_idle(self):
         if os.environ.get("KENDLE_STATE"):                # a test console: never touch the real stacks
@@ -802,10 +849,15 @@ class Sidebar:
                    "h": lambda: self.fold(True), curses.KEY_LEFT: lambda: self.fold(True),
                    "l": lambda: self.fold(False), curses.KEY_RIGHT: lambda: self.fold(False),
                    "q": lambda: core.tmux("detach-client", check=False), curses.KEY_RESIZE: self.keep_width}
+        inbox = any(h.inbox for h in review.HOSTS.values())
+        every = inbox_every()
         while True:
             if time.time() - self.disk_checked > 900:    # disk watch: warn early, clear orphans when low
                 self.disk_checked = time.time()
                 threading.Thread(target=self.watch_disk, daemon=True).start()
+            if inbox and time.time() - self.inbox_checked > every:   # what waits for your review
+                self.inbox_checked = time.time()
+                threading.Thread(target=self.watch_inbox, daemon=True).start()
             if time.time() - self.idle_checked > 60:      # stop stacks nobody has used for 30 min
                 self.idle_checked = time.time()
                 threading.Thread(target=self.stop_idle, daemon=True).start()

@@ -97,6 +97,19 @@ class Loader(KendleTest):
         self.assertRegex(check(), r"line 2\b")
         self.w.write_toml(good)
 
+    def test_a_broken_review_host_table_is_named(self):
+        good = '[repo]\npath = "app"\nbase = "main"\n'
+        self.w.write_toml(good + '[review.hosts.forge]\nfamily = "branch"\nref = "refs/forge/{}/head"\n')
+        r = self.w.kendle("list", check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("kendle.toml: review.hosts.forge: needs a url", r.stderr)
+        self.assertIn("review.hosts.forge", config.check(self.w.ws))
+        self.w.write_toml(good + '[review.hosts.forge]\nfamily = "branch"\nref = "refs/forge/{}/head"\nurl = "/c/"\n')
+        self.assertIn("review.hosts.forge: url needs a group", self.w.kendle("list", check=False).stderr)
+        self.w.write_toml(good + '[review.hosts.github]\ninbox = "true"\n')          # a built-in: only what it gives
+        self.assertIsNone(config.check(self.w.ws))
+        self.w.write_toml(good)
+
     def test_no_workspace(self):
         env = self.w.env()
         del env["KENDLE_WORKSPACE"]

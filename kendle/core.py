@@ -4,7 +4,7 @@ Shared by every kendle subcommand (CLI, curses sidebar, viewer). Python 3.9 stdl
 Every tmux call goes to a socket of its own per workspace (tmux -L kendle-<hash>), so the
 console never touches any other tmux use on this machine, nor another workspace's console.
 """
-import calendar, contextlib, datetime, fcntl, glob, hashlib, json, os, re, shutil, subprocess, time, uuid
+import calendar, contextlib, datetime, fcntl, glob, hashlib, json, os, re, shlex, shutil, subprocess, time, uuid
 from kendle import config
 
 HUB      = config.find_workspace()
@@ -19,6 +19,7 @@ DOCS     = os.path.join(HUB, CONFIG["workspace"]["docs"])
 NAME     = CONFIG["workspace"]["name"] or os.path.basename(HUB)
 STATE    = os.environ.get("KENDLE_STATE") or os.path.join(HUB, ".cache", "kendle")
 REGISTRY = os.path.join(STATE, "agents.json")
+INBOX    = os.path.join(STATE, "inbox.json")         # changes waiting for review: detected, never sessions
 PROJECTS = os.environ.get("KENDLE_PROJECTS") or os.path.expanduser("~/.claude/projects")   # tests use their own
 SOCKET   = os.environ.get("KENDLE_SOCKET") or \
            "kendle-" + hashlib.sha1(HUB.encode()).hexdigest()[:8]   # one per workspace; tests use their own
@@ -32,6 +33,12 @@ RESERVE_GB = CONFIG["workspace"]["reserve_gb"]      # free disk a new feature ne
 # mode. --disallowedTools is variadic, so the prompt must come BEFORE it.
 READ_ONLY = ["--permission-mode", "plan",
              "--disallowedTools", "Edit", "Write", "NotebookEdit", "ExitPlanMode"]
+# A review session may run exactly these two kendle commands: they move its own folder to the newest
+# revision and write a draft file - nothing that edits, commits, pushes or posts.
+REVIEW_TOOLS = ["--allowedTools", "Bash(kendle review-sync:*)", "Bash(kendle review-draft:*)"]
+# A reopened review's first message: --resume does not re-send the system prompt that says to wait.
+RESUMED = ("This folder holds {noun} {number} again. Run `kendle review-sync {number}` now, say in one line what "
+           "it holds, then do nothing more until the user asks for a review.")
 ASK = "ask"                                         # the Ask desk's registry name
 ASK_PATH = os.path.join(HUB, CONFIG["workspace"]["ask"])   # one worktree on the latest base
 
@@ -284,27 +291,27 @@ def release(pane):
 
 # ---- registry -------------------------------------------------------------------
 
-def load():
+def load(path=REGISTRY):
     try:
-        with open(REGISTRY) as f:
+        with open(path) as f:
             return json.load(f)
     except (OSError, ValueError):
         return []
 
 
-def update(fn):
+def update(fn, path=REGISTRY):
     """Apply fn(rows) under an exclusive lock, then save atomically; returns fn's result.
     If fn raises, nothing is written."""
     os.makedirs(STATE, exist_ok=True)
     with open(os.path.join(STATE, "registry.lock"), "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        rows = load()
+        rows = load(path)
         result = fn(rows)
-        tmp = REGISTRY + ".tmp"
+        tmp = path + ".tmp"
         with open(tmp, "w") as f:
             json.dump(rows, f, indent=2)
             f.write("\n")
-        os.replace(tmp, REGISTRY)
+        os.replace(tmp, path)
         return result
 
 
@@ -886,16 +893,158 @@ def review_slots():
     return [(n, os.path.join(HUB, f"review-{n}"), by_slot.get(n)) for n in range(1, REVIEW_SLOTS + 1)]
 
 
-def start_review(change, extra=()):
-    """Check out someone else's change in a review folder and read it. An earlier review of the same
-    change comes back with its conversation - a console restart or a reboot doesn't lose it."""
-    with starting("review"):                         # one at a time: they share the review folders
-        return _start_review(change, extra)
+# ---- the review inbox: changes waiting for you, detected and never opened on their own ----
+
+def _inbox_load():
+    return load(INBOX)
 
 
-def _start_review(change, extra):
+def _inbox_update(fn):
+    return update(fn, INBOX)
+
+
+def detect(host, line, branches=None):
+    """Record one line of a host's inbox - `<number|URL>[\t<head branch>][\t<title>]` - in inbox.json:
+    its newest patch set, its title (the line's, else the commit subject, fetched only for a change or
+    patch set not seen before) and the feature whose branch it is (`own`). Detecting it again moves its
+    patch set on, never adds a second row. None for a line with no number in it."""
+    parts = [p.strip() for p in line.rstrip("\r\n").split("\t")]
+    if not parts[0] or not re.search(r"\d", parts[0]):
+        return None
+    ref, number, patch = host.locate(parts[0])
+    branch = parts[1] if len(parts) > 1 and parts[1] else None
+    title = parts[2] if len(parts) > 2 and parts[2] else None
+    if not title:                                    # known at this patch set: no fetch, no wait on the lock
+        title = next((r.get("title") for r in _inbox_load() if r["host"] == host.name and r["change"] == number
+                      and str(r.get("patchset")) == str(patch)), None)
+    if not title:
+        with starting("review"):                     # FETCH_HEAD is shared with opening a review
+            title = git("log", "-1", "--format=%s", fetch_ref(ref), cwd=PRIMARY)
+    if branches is None:
+        branches = {f["branch"]: f["name"] for f in features()}
+    row = {"host": host.name, "change": number, "patchset": patch, "title": title, "branch": branch,
+           "own": branches.get(branch) if branch else None}
+
+    def put(rows):
+        old = next((r for r in rows if r["host"] == host.name and r["change"] == number), None)
+        if old:
+            old.update(row)
+            return dict(old)
+        rows.append(dict(row, seen=now(), dismissed=None))
+        return rows[-1]
+    return _inbox_update(put)
+
+
+def poll_inbox():
+    """Run every host's [review.hosts.<name>] inbox command now and record what it lists. A host whose
+    command succeeded (exit 0) keeps only the changes it listed; a failed run keeps its rows as they
+    were, and so does a listed change kendle could not look up this time. Returns (detected(), errors)."""
     from kendle import review
-    host = review.host()
+    errors = []
+    branches = {f["branch"]: f["name"] for f in features()}
+    for h in review.HOSTS.values():
+        if not h.inbox:
+            continue
+        try:
+            r = subprocess.run(["/bin/sh", "-c", config.fill(h.inbox, workspace=HUB)], cwd=HUB, capture_output=True,
+                               text=True, timeout=300, stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            errors.append(f"{h.name} inbox timed out")
+            continue
+        if r.returncode:
+            why = (r.stderr.strip().splitlines() or [f"exit {r.returncode}"])[-1]
+            errors.append(f"{h.name} inbox failed: {why}")
+            continue
+        listed = set()
+        for line in r.stdout.splitlines():
+            try:
+                row = detect(h, line, branches)
+            except (LookupError, ValueError) as err:
+                errors.append(f"{h.name} inbox: {err}")
+                try:                                 # still listed: one failed lookup must not drop its row
+                    listed.add(h.number(line.split("\t")[0]))
+                except ValueError:
+                    pass
+                continue
+            if row:
+                listed.add(row["change"])
+
+        def prune(rows, name=h.name, keep=listed):
+            rows[:] = [x for x in rows if x["host"] != name or x["change"] in keep]
+        _inbox_update(prune)
+    return detected(), errors
+
+
+def detected():
+    """The inbox's changes to show, newest first: from a host that still has an inbox, not dismissed at
+    their current patch set, and with no open review of the same change on the same host - that one is in
+    the registry, with a slot."""
+    from kendle import review
+    open_ = {(_host_name(e), str(e.get("change"))) for e in load() if e["kind"] == "review" and not e.get("released")}
+    hosts = {name for name, h in review.HOSTS.items() if h.inbox}
+    rows = [r for r in _inbox_load() if r["host"] in hosts and r.get("dismissed") != r["patchset"]
+            and (r["host"], str(r["change"])) not in open_]
+    return sorted(rows, key=lambda r: r.get("seen") or "", reverse=True)
+
+
+def _host_name(e):
+    """The host name of an open review: a review opened before kendle kept it on the row belongs to the
+    default host."""
+    try:
+        return _host_of(e).name
+    except LookupError:
+        return e.get("host")
+
+
+def dismiss(change, host=None):
+    """Hide a detected change until a newer patch set of it shows up. `host` (a name) picks the one of
+    that host when two hosts list the same number; unset, every host's is hidden."""
+    number = re.sub(r"\D", "", str(change).rstrip("/").split("/")[-1])
+
+    def put(rows):
+        hits = [r for r in rows if str(r["change"]) == number and host in (None, r["host"])]
+        if not hits:
+            raise LookupError(f"nothing detected as {change}")
+        for r in hits:
+            r["dismissed"] = r["patchset"]
+        return dict(hits[0])
+    return _inbox_update(put)
+
+
+def review_host(change):
+    """Which host a change belongs to, picked before anything is fetched: a URL by the hosts' url
+    regexes; a bare number by the host it is already open or detected from, else [review] host."""
+    from kendle import review
+    text = str(change).strip()
+    if "/" in text:
+        return review.host_for(text)
+    number = re.sub(r"\D", "", text)
+    rows = [e for e in load() if e["kind"] == "review" and not e.get("released")]
+    for e in rows + _inbox_load():
+        if str(e.get("change")) == number and e.get("host") in review.HOSTS:
+            return review.HOSTS[e["host"]]
+    return review.host()
+
+
+def start_review(change, extra=(), host=None, prompt=None, head=None):
+    """Check out someone else's change in a review folder and open a session on it. An earlier review
+    of the same change comes back with its conversation - a console restart or a reboot doesn't lose
+    it. `host` (a name) is the host the change was detected from; unset, review_host() picks it.
+    Opening does not review: only `prompt`, when given, asks the session for one - the first message
+    of a new or resumed session, or typed into one already open, after its folder and row move to the
+    newest revision (kendle autopilot asks this way). A resumed session with no `prompt` is told to run
+    `kendle review-sync` now and then wait for the user, as a new one does. `head` is the commit to check
+    out instead of the host's newest: autopilot passes the one it pushed, because the host's ref can lag
+    behind it."""
+    from kendle import review
+    with starting("review"):                         # one at a time: they share the review folders
+        if host is not None and host not in review.HOSTS:
+            raise LookupError(f"review host '{host}' - kendle knows {', '.join(review.HOSTS)}")
+        return open_review(review.HOSTS[host] if host else review_host(change), change, extra, prompt, head)
+
+
+def open_review(host, change, extra=(), prompt=None, head=None):
+    """Today's checkout and launch, for a change of a known host; start_review holds the lock."""
     ensure_session()
     reap()
     ref, number, patch = host.locate(change)
@@ -903,6 +1052,9 @@ def _start_review(change, extra):
     open_ = [e for e in load() if e["kind"] == "review" and not e.get("released") and e["change"] == number]
     live = next((e for e in open_ if is_live(e, snap)), None)
     if live:
+        if prompt:                                   # asked to review: what it reads is the newest first
+            _refresh_review(live, head)
+            type_into(live, prompt)
         return live                                  # already open - even before it has written anything
     prior = next((e for e in open_ if transcript(e["id"], e.get("cwd"))), None)
     if prior:
@@ -914,40 +1066,103 @@ def _start_review(change, extra):
         slot, path = free[0]
         for e in [e for e in load() if e["kind"] == "review" and e.get("slot") == slot and not e.get("released")]:
             release_review(e["id"], keep_folder=True)
-    git("fetch", "-q", REMOTE, ref, cwd=PRIMARY)
-    head = git("rev-parse", "FETCH_HEAD", cwd=PRIMARY)
+    rev = _revision(host, (ref, number, patch), head)
+    head, patch, subject, author, lines = rev["head"], rev["patchset"], rev["subject"], rev["author"], rev["lines"]
     if os.path.isdir(path):
         git("checkout", "--quiet", "--detach", head, cwd=path)
     else:
         git("worktree", "add", "--quiet", "--detach", path, head, cwd=PRIMARY)
         link_shared(path)
-    subject = git("log", "-1", "--format=%s", head, cwd=PRIMARY)
-    author = git("log", "-1", "--format=%an", head, cwd=PRIMARY)
-    base = host.base(head)
-    files = git("diff", "--name-only", base, head, cwd=PRIMARY).split()
-    system = note("review", file=f"{number}-{patch}")
+    # A new session gets no first prompt unless the caller asks: it waits until the user asks for a review,
+    # and what the folder holds goes into its system prompt. A resumed one keeps its old system prompt
+    # (--append-system-prompt is ignored on --resume), so its first message says to sync and then wait -
+    # unless the caller's prompt says what the folder holds instead. reviews() shows that turn as open.
     if prior:
         sid = prior["id"]
-        back = (f"I am back - this folder now holds {host.revision} {patch} of {host.noun} {number}. "
-                "Nothing else changed; carry on from where we were.")
-        argv = [claude_bin(), back, *lean(), *READ_ONLY, "--resume", sid, *extra]
+        back = prompt or RESUMED.format(noun=host.noun, number=number)
+        argv = [claude_bin(), back, *lean(), *READ_ONLY, *REVIEW_TOOLS, "--resume", sid, *extra]
     else:
         sid = str(uuid.uuid4())
-        brief = host.brief(number, patch, subject, author, len(files), base)
-        argv = [claude_bin(), brief, *lean(), *READ_ONLY, "--append-system-prompt", system,
+        brief = host.brief(number, patch, subject, author, rev["files"], rev["base"])
+        system = brief + "\n\n" + note("review", file=f"{number}-{patch}", change=number)
+        argv = [claude_bin(), *([prompt] if prompt else []), *lean(), *READ_ONLY, *REVIEW_TOOLS,
+                "--append-system-prompt", system,
                 "--session-id", sid, "-n", f"review-{number}", *extra]
     pane = new_pane(path, argv, f"review-{number}")
     entry = {"id": sid, "feature": f"review-{slot}", "kind": "review", "parent": None, "host": host.name,
              "name": f"{number}/{patch} {subject}"[:60], "change": number, "patchset": patch, "slot": slot,
-             "subject": subject, "author": author, "files": len(files), "pane": pane,
+             "subject": subject, "author": author, "files": rev["files"], "lines": lines, "head": head, "pane": pane,
              "server": snapshot()[0], "cwd": path, "started": now(), "stopped": None, "released": None}
     if prior:
         update(lambda rows: [r.update(pane=pane, server=snapshot()[0], patchset=patch, subject=subject, host=host.name,
-                                      author=author, files=len(files), started=now(), stopped=None)
+                                      author=author, files=rev["files"], lines=lines, head=head, started=now(),
+                                      stopped=None)
                              for r in rows if r["id"] == sid])   # a reboot gives tmux a new server id
     else:
         update(lambda rows: rows.append(entry))
     return entry
+
+
+def fetch_ref(ref):
+    """Fetch one of a host's refs and return its commit. A failed fetch raises: FETCH_HEAD would still
+    name what an earlier fetch brought, and kendle would read the wrong commit."""
+    try:
+        r = subprocess.run(["git", "-C", PRIMARY, "fetch", "-q", REMOTE, ref], capture_output=True, text=True,
+                           stdin=subprocess.DEVNULL, timeout=300, env=dict(os.environ, GIT_TERMINAL_PROMPT="0"))
+    except subprocess.TimeoutExpired:
+        raise LookupError(f"git fetch {ref} timed out")
+    if r.returncode:
+        raise LookupError(f"git fetch {ref} failed: {(r.stderr.strip().splitlines() or [f'exit {r.returncode}'])[-1]}")
+    return git("rev-parse", "FETCH_HEAD", cwd=PRIMARY)
+
+
+def _revision(host, located, head=None):
+    """What a review reads, from a host's locate(): its newest commit - or `head`, a commit the caller
+    already has - with the facts the review row and its brief show. With `head`, a branch host's label
+    names that commit, not the host's ref, which can lag behind it. A gerrit host given `head` keeps
+    the newest patch-set number from locate(): no caller passes one today (autopilot is GitHub only)."""
+    ref, number, patch = located
+    if head is None:
+        head = fetch_ref(ref)
+    elif host.family == "branch":
+        patch = head[:8]
+    base = host.base(head)
+    return {"change": number, "patchset": patch, "head": head, "base": base,
+            "subject": git("log", "-1", "--format=%s", head, cwd=PRIMARY),
+            "author": git("log", "-1", "--format=%an", head, cwd=PRIMARY),
+            "files": len(git("diff", "--name-only", base, head, cwd=PRIMARY).split()),
+            "lines": changed_lines(base, head)}
+
+
+def _host_of(e):
+    from kendle import review
+    return review.HOSTS[e["host"]] if e.get("host") in review.HOSTS else review.host()
+
+
+def _refresh_review(e, head=None):
+    """Check an open review's newest revision - or `head` - out in its folder and write what the folder
+    now holds back to its row: patch set, subject, author, files, lines. Returns that, with `changed`
+    (whether it moved). The caller holds the review lock: FETCH_HEAD is shared."""
+    host = _host_of(e)
+    rev = _revision(host, host.locate(e["change"]), head)
+    git("checkout", "--quiet", "--detach", rev["head"], cwd=e["cwd"])
+    rev["changed"] = str(rev["patchset"]) != str(e["patchset"]) or e.get("head") not in (None, rev["head"])
+    fields = {k: rev[k] for k in ("patchset", "subject", "author", "files", "lines", "head")}
+    fields["name"] = f"{rev['change']}/{rev['patchset']} {rev['subject']}"[:60]
+    update(lambda rows: [r.update(fields) for r in rows if r["id"] == e["id"]])
+    return rev
+
+
+def refresh_review(e, head=None):
+    """_refresh_review, under the review lock - for callers outside it (kendle autopilot)."""
+    with starting("review"):
+        return _refresh_review(e, head)
+
+
+def changed_lines(base, head):
+    """Lines added plus lines deleted between two commits (a binary file counts none)."""
+    out = git("diff", "--numstat", base, head, cwd=PRIMARY)
+    return sum(int(n) for line in out.splitlines() for n in line.split("\t")[:2] if n.isdigit())
 
 
 def reviews(all_=False):
@@ -964,18 +1179,66 @@ def reviews(all_=False):
         elif not live:
             state = "stopped"
         else:
-            s = turn_state(transcript(e["id"], e.get("cwd")), since=epoch(e.get("started"), utc=False))
-            state = {"waiting": "reviewed", "working": "reading"}.get(s) or \
-                ("trust?" if s == "new" and held_at_trust(e) else "starting")
+            t = transcript(e["id"], e.get("cwd"))
+            s = turn_state(t, since=epoch(e.get("started"), utc=False))
+            if s == "waiting" and _last_prompt(t).startswith(RESUMED.split("{", 1)[0]):
+                state = "open"                       # it only synced on reopening: nobody asked for a review
+            else:
+                state = {"waiting": "reviewed", "working": "reading"}.get(s) or \
+                    ("trust?" if s == "new" and held_at_trust(e) else "open")  # open: your turn to ask
         out.append(dict(e, state=state, ctx=context_of(transcript(e["id"], e.get("cwd")), DEFAULT_MODEL)))
     return sorted(out, key=lambda e: e.get("slot", 0))
 
 
+def _last_prompt(path):
+    """The newest message typed into a session (by the user or by kendle), '' if none."""
+    try:
+        for ev in events_backwards(path) if path else []:
+            content = (ev.get("message") or {}).get("content")
+            if ev.get("type") != "user" or ev.get("isMeta"):
+                continue
+            if isinstance(content, list):
+                if any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content):
+                    continue
+                content = " ".join(c.get("text", "") for c in content if isinstance(c, dict))
+            return (content or "").strip()
+    except OSError:
+        pass
+    return ""
+
+
+def _open_review_row(change):
+    """The open review of a change (its number or URL)."""
+    text = str(change).strip()
+    number = review_host(text).number(text) if "/" in text else re.sub(r"\D", "", text)
+    hits = [e for e in load() if e["kind"] == "review" and not e.get("released") and str(e["change"]) == number]
+    if not hits:
+        raise LookupError(f"no open review of {number} - kendle review {number} opens one")
+    return hits[0]
+
+
+def review_sync(change):
+    """Check the newest revision of an open review's change out in its folder - on the host it was
+    opened from - and say what the folder now holds. A review session runs it before every review."""
+    with starting("review"):                         # FETCH_HEAD is shared with opening a review
+        e = _open_review_row(change)
+        host = _host_of(e)
+        rev = _refresh_review(e)
+    return (f"{host.brief(rev['change'], rev['patchset'], rev['subject'], rev['author'], rev['files'], rev['base'])} "
+            f"{rev['lines']} lines changed. New since the last sync: {'yes' if rev['changed'] else 'no'}.")
+
+
+def small_change(e):
+    """Whether a review's change is under [review] large changed lines: its findings stay in chat. A
+    review opened before kendle counted lines counts as large."""
+    return e.get("lines") is not None and e["lines"] < int(CONFIG["review"]["large"])
+
+
 def save_review(e):
-    """Keep the review's findings: its last substantive reply, in <docs>/reviews/."""
+    """Keep a large change's findings: the review's last substantive reply, in <docs>/reviews/."""
     from kendle import review
     text = _answer(_texts(e))
-    if not text.strip():
+    if not text.strip() or small_change(e):
         return None
     out = os.path.join(DOCS, "reviews")
     os.makedirs(out, exist_ok=True)
@@ -998,7 +1261,42 @@ def release_review(key, keep_folder=False):
     if not keep_folder and os.path.isdir(path):
         git("worktree", "remove", "--force", path, cwd=PRIMARY)
     update(lambda rows: [r.update(released=now(), saved=saved) for r in rows if r["id"] == e["id"]])
-    return dict(e, released=now(), saved=saved)      # update() mutates its own copy of the rows
+    return dict(e, released=now(), saved=saved, small=small_change(e))   # update() mutates its own copy
+
+
+DRAFT_TIMEOUT = 300                                  # seconds [review] draft may take
+
+
+def review_draft(change):
+    """Write an open review's last substantive reply as <docs>/reviews/<change>-<patch>.draft.md, and
+    run [review] draft on it when that is set and the host keeps unpublished drafts. Never publishes:
+    the command is the user's own. Returns (path, what happened to it); a review with no reply yet is
+    refused before anything is written or run."""
+    from kendle import review
+    e = _open_review_row(change)
+    text = _answer(_texts(e)).strip()
+    if not text:
+        raise LookupError(f"nothing to draft yet - review {e['change']} has not replied")
+    out = os.path.join(DOCS, "reviews")
+    os.makedirs(out, exist_ok=True)
+    path = os.path.join(out, f"{e['change']}-{e['patchset']}.draft.md")
+    with open(path, "w") as fh:
+        fh.write(text + "\n")
+    command, host = CONFIG["review"]["draft"], review.HOSTS.get(e.get("host"))
+    if not command:
+        return path, "kept here: [review] draft is not set"
+    if host and host.draft_kind == "local":
+        return path, f"kept here: {host.name} has no unpublished drafts"
+    try:
+        r = subprocess.run(["/bin/sh", "-c", config.fill(command, file=shlex.quote(path), change=e["change"],
+                                                         patchset=e["patchset"], workspace=HUB)],
+                           cwd=HUB, capture_output=True, text=True, timeout=DRAFT_TIMEOUT, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"[review] draft timed out after {DRAFT_TIMEOUT}s - the draft is in {path}")
+    if r.returncode:
+        why = (r.stderr.strip().splitlines() or [f"exit {r.returncode}"])[-1]
+        raise RuntimeError(f"[review] draft failed: {why} - the draft is in {path}")
+    return path, "sent by [review] draft, as an unpublished draft"
 
 
 def start_question(text, extra=()):

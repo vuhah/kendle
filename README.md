@@ -19,7 +19,7 @@ panels on the left, the session you picked on the right, and the services' logs 
 - **Ask** — read-only questions on the latest base branch, for things that aren't work yet; a good
   answer can be promoted to a feature with the whole conversation as its requirement.
 - **Review** — up to three of someone else's changes checked out side by side, read-only
-  (Gerrit, GitHub or GitLab).
+  (Gerrit, GitHub, GitLab, Bitbucket, or any host you describe in `kendle.toml`).
 - **Logs** — the selected feature's services, live, with crash detection.
 - **Housekeeping** — context and memory per session, idle services stopped, a disk budget that
   trims build caches but never code or uncommitted work, and everything resumable after a reboot.
@@ -51,6 +51,8 @@ work, and the team's notes. `kendle init` sets one up:
       made     ask/ - the Ask desk, on origin/main
 
 It found the default branch itself. Already have a checkout? Move it in and run `kendle init shop`.
+`init` writes the role files once and never overwrites them. After a kendle update brings new roles
+(the review roles, say), `kendle init --roles` in the workspace adds the missing ones and keeps yours.
 
 **2. Tell kendle how your app runs and what must pass before a push** - in `kendle.toml`:
 
@@ -90,7 +92,16 @@ against it.
   makes one commit and runs `kendle gate`. You get a ready report with evidence for every line, and
   nothing is pushed until you say **push**.
 - `g` — meanwhile, review a colleague's pull request: paste `https://github.com/you/shop/pull/42`.
-  Its findings are saved to `agent_docs/reviews/` when you close it.
+  When you close it, a large change's findings (`[review] large`, 300 changed lines) are saved to
+  `agent_docs/reviews/`; a small one's stay in the chat. With an inbox set up
+  (`[review.hosts.github] inbox`, a command that lists what waits for you), those changes show under
+  REVIEW as `detected`, your own team's too (`own: <feature>`); nothing opens on its own. Enter opens
+  one in a free slot, K dismisses it until a newer revision of it shows up. An opened review waits
+  (`open`) until you ask for one; before each review it runs `kendle review-sync <change>`, which
+  checks the newest patch set out in its folder and says whether anything changed. Ask it for a
+  draft and it runs `kendle review-draft <change>`: the findings go to
+  `agent_docs/reviews/<change>-<patch set>.draft.md`, and to the host as an unpublished draft when
+  `[review] draft` says how. Nothing is ever posted, approved or rejected for you.
 
 A new feature is a folder Claude Code has not seen before, so the first session there shows Claude
 Code's folder-trust question in its pane; answer it there and the session carries on.
@@ -102,6 +113,7 @@ Everything the console does is a command too, so a script or another agent can d
     kendle stack start web api -f retry-idempotency    # the feature's own copy of the app
     kendle gate --start && kendle gate --wait            # inside the feature's folder
     kendle review https://github.com/you/shop/pull/42
+    kendle review                                      # what is waiting for your review (the inbox)
     kendle list                                        # everything, with state
 
 **4. Two features at once.** Start the stack of a second feature and it runs on shifted ports
@@ -123,7 +135,7 @@ a saved change on its own, once the file loads cleanly; until then it says what 
 | `[team]` | which tool servers and plugins kendle's sessions keep - each costs tokens every turn |
 | `[services]` | each service as a plain command, an IntelliJ run configuration, or a docker compose service |
 | `[gate]` | git checks (rebased, commits ahead, clean tree, stray files, message) and named steps |
-| `[review]` | `gerrit`, `github` or `gitlab` - guessed from the remote when unset |
+| `[review]` | `gerrit`, `github`, `gitlab` or `bitbucket` - guessed from the remote when unset; `[review.hosts.<name>]` adds a host by its ref and URL pattern, or an `inbox` command listing what waits for you; `large` and `draft` decide what a review leaves behind |
 | `[task]` | a command that prints a task from your tracker: `kendle task PROJ-12` |
 | `[autopilot]` | GitHub issues to merged pull requests: who may file them, rounds, merge method, allowed commands |
 | `[prompts]` | the note each kind of session starts with, if you want your own |
@@ -134,7 +146,7 @@ a saved change on its own, once the file loads cleanly; until then it says what 
     Tab  or click     type into it       Ctrl-q      sidebar ⇄ session
     a  ask            p  promote          g  review someone else's change
     n  new feature    m  manager          s  read-only sub-agent
-    K  stop session   r  refresh          q  close the console (sessions keep running)
+    K  stop / close   r  refresh          q  close the console (sessions keep running)
     < >  sidebar width (or drag the border)
 
 It runs on a tmux socket of its own per workspace (`kendle-<hash of the path>`), so it never touches

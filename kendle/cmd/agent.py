@@ -12,15 +12,19 @@
   kendle ask "<question>" [-- claude args]     ask on the Ask desk (latest base, read-only)
   kendle ask --all                             every question, answered and closed too
   kendle promote <question> <feature>          turn a question into a feature with its manager
-  kendle review <change|url>                   review someone else's change (read-only, Gerrit/GitHub/GitLab)
-  kendle reviews                               the open reviews
-  kendle review-close <change|id>              close a review: keep the findings, free the folder
+  kendle review <change|url>                   review someone else's change (read-only; Gerrit, GitHub,
+                                               GitLab, Bitbucket or a [review.hosts.<name>])
+  kendle review                                run the inbox now: the changes waiting for your review
+  kendle reviews                               the open reviews, and the changes waiting (detected)
+  kendle review-sync <change>                  check out the newest patch set in its review folder
+  kendle review-draft <change>                 write the findings as a draft; run [review] draft if set
+  kendle review-close <change|id>              close a review: keep a large change's findings, free the folder
 
 <manager> is a feature name. <session> is a session id or unique prefix, a feature
 name (its manager), or <feature>/<sub-name>.
 """
 import json, os, sys
-from kendle import core
+from kendle import core, review  # at the top: a broken [review.hosts] table stops every command
 
 DIM, BOLD, OFF = "\033[2m", "\033[1m", "\033[0m"
 
@@ -44,6 +48,11 @@ def print_questions(qs, d):
         print(f"{BOLD}ASK{OFF}  {DIM}{core.BASE} @ {d['sha']} ({d['date']}){' ' + str(d['behind']) + ' behind' if d['behind'] else ''}{OFF}")
     for q in qs:
         print(f"  ● {q['name'][:44]:<44} {q['state']:<14} {DIM}{q['id'][:8]}{OFF}")
+
+
+def print_detected(r):
+    own = f"own: {r['own']}" if r.get("own") else ""
+    print(f"  {'detected':<10} {r['change']}/{r['patchset']:<3} {(r.get('title') or '')[:48]:<48} {own}".rstrip())
 
 
 def main(argv):
@@ -94,15 +103,38 @@ def main(argv):
             first = args[1] if len(args) == 2 else core.note("fresh", feature=name)
             m, _ = core.start_manager(name, extra, first, fresh=True)
             print("fresh manager", m["id"], m["pane"])
+        elif cmd == "review" and not args:
+            if not any(h.inbox for h in review.HOSTS.values()):
+                print("kendle review: no inbox set up - add a command that prints the changes waiting for you,\n"
+                      "one per line (<number or URL>[TAB<branch>][TAB<title>]), to kendle.toml:\n"
+                      "  [review.hosts.github]\n  inbox = \"<command>\"\n"
+                      "or give the change: kendle review <change|url>", file=sys.stderr)
+                return 2
+            rows, errors = core.poll_inbox()
+            for r in rows:
+                print_detected(r)
+            if not rows:
+                print("nothing waiting for your review")
+            for err in errors:
+                print("kendle:", err, file=sys.stderr)
+            return 1 if errors else 0
         elif cmd == "review" and len(args) == 1:
             e = core.start_review(args[0], extra)
             print(f"review {e['change']}/{e['patchset']} '{e['subject']}' by {e['author']} in {e['cwd']}")
         elif cmd == "reviews":
             for r in core.reviews(all_=bool(args)):
                 print(f"  {r['state']:<10} {r['change']}/{r['patchset']:<3} {r['subject'][:48]:<48} {r['author']}")
+            for r in core.detected():
+                print_detected(r)
+        elif cmd == "review-sync" and len(args) == 1:
+            print(core.review_sync(args[0]))
+        elif cmd == "review-draft" and len(args) == 1:
+            path, how = core.review_draft(args[0])
+            print(f"draft {path} - {how}")
         elif cmd == "review-close" and len(args) == 1:
             e = core.release_review(args[0])
-            print("closed review", e["change"], "- findings:", e.get("saved") or "(nothing to save)")
+            kept = e.get("saved") or ("kept in chat (small change)" if e.get("small") else "(nothing to save)")
+            print("closed review", e["change"], "- findings:", kept)
         elif cmd == "adopt" and len(args) == 2:
             e = core.adopt(args[0], args[1])
             print("adopted", e["id"], "as the", e["feature"], "manager")

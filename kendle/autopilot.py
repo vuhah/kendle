@@ -315,22 +315,37 @@ def check(rec):
     ask_review(rec)
 
 
+def review_request(rec):
+    """What autopilot asks the review session each round: opening or resuming it does not review, and
+    autopilot reads the verdict from the reply's first line. The folder already holds what kendle
+    pushed; `kendle review-sync` would check out GitHub's ref, which can lag behind it."""
+    head, rounds = rec["sha"][:8], AP["rounds"]
+    if rec["round"] == 1:
+        what = (f"review pull request #{rec['pr']} at {head}, its newest patch set, which this folder already "
+                "holds. Review the whole change")
+    else:
+        what = (f"the author pushed {head} to answer your findings, and this folder already holds it. Review "
+                "the whole change again")
+    return (f"{TAG} Round {rec['round']} of {rounds}: {what} against its merge base with {core.UPSTREAM}. Do not "
+            f"run `kendle review-sync` this time: it would check out GitHub's ref, which can lag behind {head}. "
+            "Give the verdict line first - Approve, Comments or Blocked - then the context, then the findings.")
+
+
 def ask_review(rec):
-    """Round 1 opens the review; later rounds check the new head out in its folder and ask again."""
+    """Round 1 opens the review; later rounds check the new head out in its folder. Every round then
+    asks for the review itself - the session reviews only when asked."""
+    head = rec["sha"]                                 # what kendle pushed; GitHub's ref can lag behind it
     e = review_of(rec)
     if e is None or e.get("released"):
-        e = core.start_review(str(rec["pr"]))
+        e = core.start_review(str(rec["pr"]), prompt=review_request(rec), head=head)
         rec["review"], rec["review_sent"] = e["id"], time.time()
         return log(rec, f"review round {rec['round']} started in {os.path.basename(e['cwd'])}")
-    head = rec["sha"]                                 # what kendle pushed; GitHub's ref can lag behind it
     if not core.is_live(e, core.snapshot()):
-        core.start_review(str(rec["pr"]))          # resumes it on the new head, with its conversation
+        core.start_review(str(rec["pr"]), prompt=review_request(rec), head=head)   # resumes it on the new head
         rec["review_sent"] = time.time()
     else:
-        core.git("checkout", "--quiet", "--detach", head, cwd=e["cwd"])
-        tell_review(rec, f"{TAG} Round {rec['round']} of {AP['rounds']}: the author pushed {head[:8]} to answer "
-                         "your findings, and this folder now holds it. Review the whole change again against its "
-                         f"merge base with {core.UPSTREAM}; the verdict line first.")
+        core.refresh_review(e, head)                  # the folder and its row move to the new head together
+        tell_review(rec, review_request(rec))
     log(rec, f"review round {rec['round']} asked at {head[:8]}")
 
 
