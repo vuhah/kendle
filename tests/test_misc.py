@@ -1,6 +1,6 @@
-"""kendle task, kendle disk, and the command line itself."""
-import os, tempfile, textwrap, time, unittest
-from helpers import KendleTest, Workspace, read, sh
+"""kendle task, kendle disk, the sidebar's key map, and the command line itself."""
+import os, shutil, sys, tempfile, textwrap, time, unittest
+from helpers import FAKEBIN, ROOT, KendleTest, Workspace, free_port, read, sh
 
 
 class Task(KendleTest):
@@ -127,6 +127,116 @@ class Disk(KendleTest):
         """)
         self.assertEqual([out, err], ["", ""])
         self.assertEqual(said, [["disk check failed: du went away", True]])
+
+
+class DeskAndReviewDisk(KendleTest):
+    TOML = f"""
+        [disk]
+        caches = ["dist"]
+
+        [services.web]
+        run = "exec {sys.executable} {os.path.join(FAKEBIN, 'listen')} {{port}}"
+        port = {free_port()}
+    """
+
+    def tearDown(self):
+        self.w.kendle("stack", "stop", "-f", "ask", check=False)
+
+    def test_the_desk_and_reviews_are_counted_and_trimmed_only_while_no_stack_runs(self):
+        desk = os.path.join(self.w.ws, "ask")
+        review = os.path.join(self.w.ws, "review-1")
+        self.w.git(self.w.app, "worktree", "add", "-q", "--detach", review, "origin/main")
+        dist = os.path.join(desk, "dist")
+        os.makedirs(dist)
+        with open(os.path.join(dist, "bundle.js"), "w") as f:
+            f.write("x" * 1024 * 1024)
+        out = self.w.kendle("disk").stdout
+        section = out.split("\n  desk and reviews\n")[1]
+        self.assertIn("    ask ", section)
+        self.assertIn("    review-1 ", section)
+        self.w.kendle("stack", "start", "web", cwd=desk)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=desk).returncode, 0)
+        self.assertIn("skipped ask: it is working right now or its services are up", self.w.kendle("disk", "trim", "ask").stdout)
+        self.assertTrue(os.path.exists(dist))
+        self.w.kendle("stack", "stop", cwd=desk)
+        self.assertIn("  dist", self.w.kendle("disk", "trim", "ask").stdout)
+        self.assertFalse(os.path.exists(dist))
+        self.assertIn("no feature, Ask desk or review folder 'nope'", self.w.kendle("disk", "trim", "nope").stdout)
+
+    def test_trim_and_idle_print_nothing_and_return_their_lines(self):
+        r = self.w.py(textwrap.dedent("""
+            import io, contextlib
+            from kendle.cmd import disk
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                trimmed = disk.trim(["nope"])
+                idled = disk.idle(10000)
+            print(json.dumps([out.getvalue(), trimmed, idled]))
+        """))
+        self.assertEqual(r[0], "")
+        self.assertEqual(r[1][0], 0.0)
+        self.assertIn("  no feature, Ask desk or review folder 'nope'", r[1][1])
+        self.assertEqual(r[2], [0.0, ["  nothing has been idle for 10000 days"]])
+
+
+    def test_the_consoles_disk_watch_trims_a_quiet_review_never_a_running_desk_and_prints_nothing(self):
+        desk = os.path.join(self.w.ws, "ask")
+        review = os.path.join(self.w.ws, "review-2")
+        self.w.git(self.w.app, "worktree", "add", "-q", "--detach", review, "origin/main")
+        self.addCleanup(self.w.git, self.w.app, "worktree", "remove", "--force", review)
+        self.addCleanup(shutil.rmtree, os.path.join(desk, "dist"), True)
+        for folder in (desk, review):
+            os.makedirs(os.path.join(folder, "dist"), exist_ok=True)
+            with open(os.path.join(folder, "dist", "bundle.js"), "w") as f:
+                f.write("x" * 1024)
+        self.w.kendle("stack", "start", "web", cwd=desk)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=desk).returncode, 0)
+        try:
+            r = self.w.py(textwrap.dedent("""
+                import io, os, contextlib, types
+                from kendle import core
+                from kendle.cmd import disk
+                from kendle.cmd.sidebar import Sidebar
+                out, err, said = io.StringIO(), io.StringIO(), []
+                stand_in = types.SimpleNamespace(say=lambda text, error=False: said.append([text, error]))
+                core.free_gb = lambda: 100
+                disk.orphan_bases = lambda: []
+                disk.gb = lambda path: 10.0
+                disk.budget = lambda new=None: 5                # over budget
+                disk.last_touch = lambda path: 0                # every folder quiet for ages
+                os.environ.pop("KENDLE_STATE")
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    Sidebar.watch_disk(stand_in)
+                    lines = disk.enforce(dry=True)[1]
+                print(json.dumps([out.getvalue(), err.getvalue(), said, lines]))
+            """))
+        finally:
+            self.w.kendle("stack", "stop", "-f", "ask", check=False)
+        out, err, said, _ = r
+        self.assertEqual([out, err], ["", ""])
+        self.assertEqual(len(said), 1, said)
+        self.assertTrue(said[0][0].startswith("hub was"), said)
+        self.assertFalse(said[0][1])
+        self.assertTrue(os.path.exists(os.path.join(desk, "dist")))          # its stack runs
+        self.assertFalse(os.path.exists(os.path.join(review, "dist")))          # quiet, and nothing runs there
+
+class Sidebar(unittest.TestCase):
+    """The curses sidebar is not driven by a test; S runs `kendle stack` from the workspace folder,
+    which the stack tests cover. Here: S is mapped, and the help tells it apart from s."""
+
+    def test_s_and_S_are_listed_together_and_S_is_mapped(self):
+        source = read(os.path.join(ROOT, "kendle", "cmd", "sidebar.py"))
+        self.assertIn('"S": self.stack_toggle', source.split("actions = {", 1)[1].split("}", 1)[0])
+        doc = source.split('"""', 2)[1]
+        self.assertIn("s read-only sub-agent · S start/stop the desk's or a review's services", doc)
+
+    def test_S_on_the_desk_says_its_stack_stops_when_the_desk_moves_and_when_it_closes(self):
+        source = read(os.path.join(ROOT, "kendle", "cmd", "sidebar.py"))
+        start = source.split("def stack_toggle", 1)[1].split("\n    def ", 1)[0]
+        self.assertIn('" - they stop when the next question moves the desk,"\n', start)
+        self.assertIn('" and when it closes" if name == _stack.desk_name() else ""', start)
+        doc = source.split('"""', 2)[1]
+        self.assertIn("stops when the next question moves the desk, and when it closes", doc)
 
 
 class CommandLine(KendleTest):

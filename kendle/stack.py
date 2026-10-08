@@ -1,25 +1,52 @@
-"""The team's local services for a feature: start, stop, restart, status, logs.
+"""Local services for a folder the console manages: start, stop, restart, status, logs.
 
 What each service is comes from kendle.toml (kendle.services: a plain command, an IntelliJ run
-configuration, or a docker compose service). Here they are run from the feature's worktree, each in
-its own process group, with its output in .cache/kendle/stack/<feature>/<service>.log. Only processes
-started here are ever stopped: a port held by anything else is refused, never killed.
-Two features can run at once: the second stack moves every shiftable port (services.shift_by).
+configuration, or a docker compose service). Here they are run from the folder that owns the stack -
+a feature worktree, the Ask desk or a review folder - each in its own process group, with its output
+in .cache/kendle/stack/<name>/<service>.log. Only processes started here are ever stopped: a port
+held by anything else is refused, never killed.
+Up to services.stacks stacks run at once (default 3); stack N moves every shiftable port by
+(N-1) x services.shift_by. Features together hold all but the last, which is kept for the desk or a review.
 """
 import glob, json, os, re, signal, subprocess, time
 from kendle import core, services
 
 STATE = os.path.join(core.STATE, "stack")
 SERVICES = services.SERVICES
-SLOTS = (0, 1)                 # two stacks at most; slot 1 runs with every shiftable port moved
+SLOTS = range(services.SETTINGS["stacks"])   # slot n (stack n+1) moves every shiftable port by n x shift_by
 ERROR_RE = re.compile(r"\b(ERROR|FATAL|Exception|Caused by:|FAILED|BUILD FAILURE|Error:)")
 
 
 # ---- where and how -----------------------------------------------------------------
 
-def feature_here():
+def desk_name():
+    """The Ask desk's stack is named by its folder (kendle.toml workspace.ask), not its registry name."""
+    return os.path.basename(core.ASK_PATH)
+
+
+def workspaces():
+    """Every folder that can own a stack: the feature worktrees, the Ask desk and the review
+    folders that exist - each as {name, path, kind}, the shape the rest of this module takes."""
+    out = [dict(f, kind="feature") for f in core.features()]
+    if os.path.isdir(core.ASK_PATH):
+        out.append({"name": desk_name(), "path": os.path.realpath(core.ASK_PATH), "kind": "desk"})
+    for n, path, _ in core.review_slots():
+        if os.path.isdir(path):
+            out.append({"name": f"review-{n}", "path": os.path.realpath(path), "kind": "review"})
+    return out
+
+
+def kind_of(name):
+    """feature, desk or review - by name alone, so it works after the folder has gone."""
+    if name == desk_name():
+        return "desk"
+    return "review" if re.fullmatch(r"review-\d+", name) and name in core.RESERVED else "feature"
+
+
+def here():
+    """The folder the current directory is in, or None."""
     cwd = os.path.realpath(os.getcwd())
-    for f in core.features():
+    for f in workspaces():
         if cwd == f["path"] or cwd.startswith(f["path"] + os.sep):
             return f
     return None
@@ -27,10 +54,13 @@ def feature_here():
 
 def resolve(name=None):
     if name:
-        return core.feature(name)
-    f = feature_here()
+        for f in workspaces():
+            if f["name"] == name:
+                return f
+        raise LookupError(f"no feature, Ask desk or review folder named '{name}'")
+    f = here()
     if not f:
-        raise LookupError("run it inside a feature worktree, or pass -f <feature>")
+        raise LookupError("run it inside a feature, the Ask desk or a review folder, or pass -f <name>")
     return f
 
 
@@ -147,19 +177,38 @@ def url_of(feature):
     return services.app_url(slot_of(feature)) or "-"
 
 
-def _allocate(feature, replace):
-    """This feature's slot: the one it already runs in, else the first free; at most two stacks."""
-    running = [x for x in running_stacks() if x != feature]
-    if feature in running_stacks():
-        return slot_of(feature)
+def _started(name):
+    return min(s["started"] for s in status(name) if s["state"] in ("up", "starting"))
+
+
+def _allocate(name, replace):
+    """This stack's slot: the one it already runs in, else the first free. Features together hold at
+    most stacks - 1 slots: the last one is kept for the Ask desk or a review, so a question or a
+    review can always run the app. --replace stops only the oldest feature stack, for a feature."""
+    running = running_stacks()
+    if name in running:
+        return slot_of(name)
     used = {slot_of(x): x for x in running}
     free = [n for n in SLOTS if n not in used]
-    if free:
+    held = ", ".join(f"{x} ({kind_of(x)})" for x in sorted(running))
+    if kind_of(name) != "feature":
+        if free:
+            return free[0]
+        raise RuntimeError(f"all {len(SLOTS)} stacks are running ({held}) - stop one first "
+                           f"(kendle stack stop -f <name>)")
+    features = [x for x in running if kind_of(x) == "feature"]
+    if free and len(features) < len(SLOTS) - 1:
         return free[0]
-    if not replace:
-        raise RuntimeError(f"two stacks are already running ({', '.join(sorted(running))}) - stop one first "
-                           f"(kendle stack stop -f <feature>) or pass --replace to stop the oldest")
-    oldest = min(running, key=lambda x: min(s["started"] for s in status(x) if s["state"] in ("up", "starting")))
+    if not replace or not features:
+        if free:
+            n = len(features)
+            why = (f"{n} feature stack{'s' if n != 1 else ''} {'are' if n != 1 else 'is'} already running ({held}); "
+                   f"the last stack is kept for the Ask desk and reviews")
+        else:
+            why = f"all {len(SLOTS)} stacks are running ({held})"
+        raise RuntimeError(why + " - stop one first (kendle stack stop -f <name>)"
+                           + (" or pass --replace to stop the oldest feature's" if features else ""))
+    oldest = min(features, key=_started)
     stop(oldest)
     return slot_of(oldest)
 
@@ -294,11 +343,13 @@ def _last_event(path):
 
 
 def last_activity(feature):
-    """When the feature's sessions (manager, its roles, spawned subs) last did anything, and whether
-    one is in the middle of a tool call right now (a long build or test prints nothing for a while)."""
+    """When the stack's sessions last did anything, and whether one is in the middle of a tool call
+    right now (a long build or test prints nothing for a while). A feature's are its manager, roles
+    and spawned subs; the desk's its questions (registered under core.ASK); a review folder's its review."""
     newest, busy = 0, False
+    key = core.ASK if feature == desk_name() else feature
     for e in core.load():
-        if e["feature"] != feature or e["kind"] not in ("manager", "sub"):
+        if e["feature"] != key or e["kind"] not in ("manager", "sub", "question", "review") or e.get("released"):
             continue
         t = core.transcript(e["id"], e.get("cwd"))
         paths = [t] + (glob.glob(t[:-6] + "/subagents/agent-*.jsonl") if t else [])
@@ -314,7 +365,7 @@ def idle_minutes():
 
 
 def stop_idle(minutes=None):
-    """Stop every running stack whose feature's sessions have done nothing for `minutes` (kendle.toml services.idle_minutes)."""
+    """Stop every running stack whose sessions have done nothing for `minutes` (kendle.toml services.idle_minutes)."""
     minutes = minutes or idle_minutes()
     stopped = []
     for feature in running_stacks():

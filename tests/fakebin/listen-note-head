@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""A stand-in service that notes, when it is stopped, which commit its folder held: listens on
+127.0.0.1:<port>, and on SIGTERM appends `git rev-parse HEAD` of its working folder to <file>.
+A test reads it to tell whether a stack stopped before or after its folder's code moved."""
+import signal, socket, subprocess, sys
+
+port, note = int(sys.argv[1]), sys.argv[2]
+
+
+def stopped(*_):
+    head = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
+    with open(note, "a") as f:
+        f.write(head + "\n")
+    sys.exit(0)
+
+
+signal.signal(signal.SIGTERM, stopped)
+s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(("127.0.0.1", port))
+s.listen(16)
+print("listening on", port, flush=True)
+while True:
+    conn, _ = s.accept()
+    conn.close()

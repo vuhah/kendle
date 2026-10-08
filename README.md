@@ -20,7 +20,7 @@ panels on the left, the session you picked on the right, and the services' logs 
   answer can be promoted to a feature with the whole conversation as its requirement.
 - **Review** — up to three of someone else's changes checked out side by side, read-only
   (Gerrit, GitHub or GitLab).
-- **Logs** — the selected feature's services, live, with crash detection.
+- **Logs** — the selected feature's, desk's or review's services, live, with crash detection.
 - **Housekeeping** — context and memory per session, idle services stopped, a disk budget that
   trims build caches but never code or uncommitted work, and everything resumable after a reboot.
 
@@ -109,6 +109,20 @@ Everything the console does is a command too, so a script or another agent can d
 service moves too when `kendle.toml` gives it its port and the compose file publishes that port as
 `"${KENDLE_PORT:-5432}:5432"`; otherwise kendle refuses to start it a second time and says why.
 
+**5. The desk and reviews run the app too.** A question that needs the running app, or a review
+that wants to try the change, starts its own folder's stack: `kendle stack start web api` inside
+`ask/` or `review-1/` (their sessions are allowed exactly that, and nothing that edits). Up to
+`services.stacks` stacks run at once (default 3): stack N moves every shifted port by
+(N-1) x `shift_by`, and features hold all but the last, which is kept for the desk and reviews. Past
+the end of `services.hosts` a stack reuses the last host, and `kendle stack status` says it shares
+logins with that stack. From the desk or a review folder only that folder's own stack can be started
+or stopped. The desk's stack stops when its last question closes, and before a new question moves the
+desk to the latest base; a review's stops when the review closes or its folder takes another change.
+In the console, `S` starts or stops the selected desk's or review's services. Two things to know:
+the services share this machine's database (sessions are told never to change rows unless you ask),
+and whatever the services write in the desk folder must be gitignored - the desk is never moved over
+changes git can see.
+
 ## Configuration
 
 `kendle.toml` sits at the workspace root; only `[repo] path` is required. An open console picks up
@@ -121,12 +135,12 @@ a saved change on its own, once the file loads cleanly; until then it says what 
 | `[workspace]` | the docs folder, the Ask desk, folders that are never features, links into each worktree |
 | `[disk]` | the size budget and which folders are regenerable caches (and bazel output bases) |
 | `[team]` | which tool servers and plugins kendle's sessions keep - each costs tokens every turn |
-| `[services]` | each service as a plain command, an IntelliJ run configuration, or a docker compose service |
+| `[services]` | each service as a plain command, an IntelliJ run configuration, or a docker compose service; how many stacks run at once |
 | `[gate]` | git checks (rebased, commits ahead, clean tree, stray files, message) and named steps |
 | `[review]` | `gerrit`, `github` or `gitlab` - guessed from the remote when unset |
 | `[task]` | a command that prints a task from your tracker: `kendle task PROJ-12` |
 | `[autopilot]` | GitHub issues to merged pull requests: who may file them, rounds, merge method, allowed commands |
-| `[prompts]` | the note each kind of session starts with, if you want your own |
+| `[prompts]` | the note each kind of session starts with, if you want your own (`stack`: what the desk and reviews are told about their services) |
 
 ## The console
 
@@ -134,6 +148,8 @@ a saved change on its own, once the file loads cleanly; until then it says what 
     Tab  or click     type into it       Ctrl-q      sidebar ⇄ session
     a  ask            p  promote          g  review someone else's change
     n  new feature    m  manager          s  read-only sub-agent
+    S  start/stop the desk's or a review's services (a desk stack started with S stops when the
+       next question moves the desk, and again when that question closes)
     K  stop session   r  refresh          q  close the console (sessions keep running)
     < >  sidebar width (or drag the border)
 
@@ -184,7 +200,7 @@ Each of these came from something that went wrong once:
 
     python3 -m unittest discover -s tests
 
-About 50 tests, half a minute. Each runs kendle the way a user does, against a throwaway git repo
+About 75 tests, a minute. Each runs kendle the way a user does, against a throwaway git repo
 with a scratch origin, on a tmux socket, state folder and transcript folder of its own, with a
 stand-in for `claude` that records what it was asked to do - nothing touches your real sessions.
 

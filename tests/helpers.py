@@ -20,6 +20,21 @@ def sh(*args, cwd=None, check=True, env=None):
     return r
 
 
+def free_port():
+    """A port with its +100 and +200 neighbours free too (stacks 2 and 3), away from common dev ports."""
+    import random, socket
+    for _ in range(200):
+        port = random.randrange(20000, 40000)
+        try:
+            for p in (port, port + 100, port + 200):
+                with socket.socket() as s:
+                    s.bind(("127.0.0.1", p))
+            return port
+        except OSError:
+            continue
+    raise RuntimeError("no free port triple")
+
+
 def read(path):
     with open(path, errors="replace") as f:
         return f.read()

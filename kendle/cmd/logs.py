@@ -1,4 +1,5 @@
-"""kendle logs - the logs column of the kendle console: the selected feature's services, live.
+"""kendle logs - the logs column of the kendle console: the selected row's services, live (a feature's,
+the Ask desk's or a review folder's).
 
   ← → or 1-9    switch service         v    split: two services stacked (Tab switches the active half)
   j k / PgUp PgDn  scroll              f    follow the newest lines again
@@ -196,7 +197,7 @@ class Logs:
     def cli(self, *args):
         """Through the kendle stack command, so the service is never this pane's child (no zombies,
         and closing the column never takes a service with it)."""
-        r = subprocess.run([core.KENDLE, "stack", args[0], "-f", self.feature, *args[1:]],
+        r = subprocess.run([core.KENDLE, "stack", args[0], "-f", self.feature, *args[1:]], cwd=core.HUB,
                            capture_output=True, text=True, stdin=subprocess.DEVNULL)
         if r.returncode:
             raise RuntimeError((r.stderr or r.stdout).strip().splitlines()[-1])

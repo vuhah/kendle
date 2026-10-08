@@ -9,7 +9,7 @@
   intellij = ["Bazel_run_api.xml"]     the first one that exists; run/env/port come from it
 
   [services.db]                        a docker compose service, from the worktree's compose file
-  compose = "db"                       (to run in the second stack too, give it its port here and
+  compose = "db"                       (to run in the other stacks too, give it its port here and
   port = 5432                           publish it as "${KENDLE_PORT:-5432}:5432" in the compose file)
 
 A service with only a port is check-only: `kendle services` reports it, kendle never starts it.
@@ -21,9 +21,10 @@ import xml.etree.ElementTree as ET
 from kendle import config, core
 
 SETTINGS = {
-    "shift_by": 100,             # the second stack runs with every shifted port moved by this much
-    "shift_ports": None,         # ports that move in the second stack; default: those of the services kendle starts
-    "hosts": ["localhost", "127.0.0.1"],   # each stack's host - browser cookies are per host
+    "stacks": 3,                 # the most stacks at once; features hold all but the last (desk, reviews)
+    "shift_by": 100,             # stack N runs with every shifted port moved by (N-1) x this much
+    "shift_ports": None,         # ports that move in the other stacks; default: those of the services kendle starts
+    "hosts": ["localhost", "127.0.0.1"],   # each stack's host (cookies are per host); later stacks reuse the last
     "app": None,                 # the service the browser opens; its URL is shown
     "idle_minutes": 30,          # stop a feature's services after its sessions are quiet this long
     "intellij_dir": ".idea/runConfigurations",   # relative to the worktree; may start with {workspace}
@@ -45,6 +46,9 @@ def _load():
         if unknown:
             raise SystemExit(f"kendle: kendle.toml: unknown key services.{name}.{sorted(unknown)[0]}")
         services[name] = spec
+    stacks = settings.get("stacks", SETTINGS["stacks"])
+    if isinstance(stacks, bool) or not isinstance(stacks, int) or stacks < 2:
+        raise SystemExit("kendle: kendle.toml: services.stacks must be 2 or more")
     return dict(SETTINGS, **settings), services
 
 
@@ -81,7 +85,13 @@ def host(slot):
     return hosts[min(slot, len(hosts) - 1)]
 
 
-# ---- shifting ports for the second stack ----------------------------------------------
+def shares_host(slot):
+    """The lowest earlier slot on the same host, or None. Browser logins are per host, so a slot past
+    the end of services.hosts, which reuses the last host, shares them with that one."""
+    return next((n for n in range(slot) if host(n) == host(slot)), None)
+
+
+# ---- shifting ports for the other stacks ----------------------------------------------
 
 def shift_text(text, off, host_only=None):
     """host:port references to a shifted port, moved by `off` (and onto host_only, if given)."""
@@ -188,17 +198,17 @@ def spec(name, f, slot=0):
     port = s.get("port") or base.get("port")
     shifted_port = port + off if port and port in SHIFTABLE else port
     if off and port and "compose" in s and not s.get("intellij"):
-        # the compose file decides what is published: it must take the second stack's port from kendle
+        # the compose file decides what is published: it must take the other stacks' port from kendle
         moved = _compose(name, s, worktree, f["name"], {"KENDLE_PORT": str(shifted_port)})["port"]
         if shifted_port == port or moved != shifted_port:
-            raise LookupError(f"{name} would publish port {moved or port} in the second stack, as in the first - "
+            raise LookupError(f"{name} would publish port {moved or port} in stack {slot + 1}, as in the first - "
                               f"give it its port in kendle.toml (services.{name}: port = {port}) and publish that "
                               f"in the compose file as \"${{KENDLE_PORT:-{port}}}:<container port>\"")
     state = os.path.join(core.STATE, "stack", f["name"])
     fields = {"port": shifted_port or "", "host": host(slot), "offset": off, "shifted_dir": state,
               "worktree": worktree, "workspace": core.HUB, "feature": f["name"]}
     cwd = os.path.join(worktree, config.fill(s.get("cwd", ""), **fields)) if s.get("cwd") else base.get("cwd", worktree)
-    if off:                                       # the second stack: shifted copies of the files it names
+    if off:                                       # another stack: shifted copies of the files it names
         os.makedirs(state, exist_ok=True)
         for rel in s.get("shift", []):
             with open(os.path.join(cwd, rel)) as src, open(os.path.join(state, os.path.basename(rel)), "w") as dst:

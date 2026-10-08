@@ -1,21 +1,7 @@
-"""kendle stack / kendle services: real processes on free ports, two stacks side by side."""
+"""kendle stack / kendle services: real processes on free ports, stacks side by side - features, the
+Ask desk and review folders."""
 import json, os, shutil, socket, subprocess, sys, time, unittest
-from helpers import FAKEBIN, KendleTest, read, wait_for
-
-
-def free_port():
-    """A port with its +100 neighbour free too (the second stack's), away from common dev ports."""
-    import random
-    for _ in range(200):
-        port = random.randrange(20000, 40000)
-        try:
-            for p in (port, port + 100):
-                with socket.socket() as s:
-                    s.bind(("127.0.0.1", p))
-            return port
-        except OSError:
-            continue
-    raise RuntimeError("no free port pair")
+from helpers import FAKEBIN, KendleTest, free_port, read, wait_for
 
 
 def answers(port):
@@ -149,6 +135,228 @@ class Stack(KendleTest):
         self.assertEqual(got, ["one"])
 
 
+RO = free_port()
+
+
+class ReadOnlyFolders(KendleTest):
+    """The Ask desk and a review folder own stacks too: the last slot is kept for them."""
+    TOML = f"""
+        [services]
+        app = "web"
+
+        [services.web]
+        run = "exec {sys.executable} {LISTEN} {{port}}"
+        port = {RO}
+    """
+    NAMES = ("one", "two", "three", "ask", "review-1")
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        for name in ("one", "two", "three"):
+            cls.w.kendle("new", name)
+        cls.desk = os.path.join(cls.w.ws, "ask")
+        cls.review = os.path.join(cls.w.ws, "review-1")
+        cls.w.git(cls.w.app, "worktree", "add", "-q", "--detach", cls.review, "origin/main")
+
+    def tearDown(self):
+        for name in self.NAMES:
+            self.w.kendle("stack", "stop", "-f", name, check=False)
+
+    def state(self, name):
+        rows = [l.split() for l in self.w.kendle("stack", "status", "-f", name).stdout.splitlines()
+                if l.startswith("  ") and " port " in l]
+        return rows[0][0] if rows else None
+
+    def test_the_desk_takes_the_kept_stack_with_ports_moved_twice_and_shares_logins(self):
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        out = self.w.kendle("stack", "start", "web", "-f", "two").stdout
+        self.assertNotIn("shares logins", out)                 # stacks 1 and 2 are as they always were
+        out = self.w.kendle("stack", "start", "web", cwd=self.desk).stdout
+        self.assertIn(f"starting on port {RO + 200}", out)
+        self.assertIn(f"stack 3 · app at http://127.0.0.1:{RO + 200}", out)
+        self.assertIn("shares logins with stack 2 (same host)", out)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=self.desk).returncode, 0)
+        self.assertTrue(answers(RO + 200))
+        out = self.w.kendle("stack", "status", cwd=self.desk).stdout
+        self.assertIn("ask  (desk · stack 3", out)
+        self.assertIn("shares logins with stack 2 (same host)", out)
+        self.assertIn("one  (feature · stack 1", self.w.kendle("stack", "status", "-f", "one").stdout)
+
+    def test_features_never_take_the_last_stack_and_replace_never_stops_the_desk(self):
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        time.sleep(0.05)
+        self.w.kendle("stack", "start", "web", "-f", "two")
+        r = self.w.kendle("stack", "start", "web", "-f", "three", check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("2 feature stacks are already running (one (feature), two (feature))", r.stderr)
+        self.w.kendle("stack", "start", "web", cwd=self.desk)
+        r = self.w.kendle("stack", "start", "web", "-f", "three", check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("all 3 stacks are running", r.stderr)    # every stack taken: says so, not the reserve
+        self.assertNotIn("kept for the Ask desk", r.stderr)
+        r = self.w.kendle("stack", "start", "web", cwd=self.review, check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("all 3 stacks are running", r.stderr)
+        self.assertIn("ask (desk)", r.stderr)
+        self.assertIn(f"starting on port {RO}", self.w.kendle("stack", "start", "web", "-f", "three", "--replace").stdout)
+        self.assertEqual(self.state("one"), "stopped")         # the oldest feature made room
+        self.assertIn(self.state("ask"), ("up", "starting"))   # never the desk
+        self.assertIn(self.state("two"), ("up", "starting"))
+
+    def test_a_review_folder_runs_only_its_own_stack(self):
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        self.w.kendle("stack", "wait", "-f", "one")
+        out = self.w.kendle("stack", "start", "web", cwd=self.review).stdout
+        self.assertIn(f"starting on port {RO + 100}", out)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=self.review).returncode, 0)
+        for cmd in (["stop"], ["start", "web"], ["restart", "web"], ["restart-affected"], ["wait"]):
+            r = self.w.kendle("stack", *cmd, "-f", "one", cwd=self.review, check=False)
+            self.assertEqual(r.returncode, 1, cmd)
+            self.assertIn("a read-only folder runs only its own stack (review-1)", r.stderr)
+        self.assertEqual(self.state("one"), "up")
+        self.assertIn("one  (feature", self.w.kendle("stack", "status", "-f", "one", cwd=self.review).stdout)
+        self.assertIn("start web in one", self.w.kendle("stack", "logs", "web", "-f", "one", cwd=self.review).stdout)
+        self.assertIn("review-1  (review", self.w.kendle("stack", "status", "-f", "review-1", cwd=self.review).stdout)
+        self.assertEqual(self.w.kendle("stack", "stop", "--why", "done here", cwd=self.review).stdout.strip(), "stopped: web")
+        self.assertIn("stopped by kendle stack - done here", read(os.path.join(self.w.state, "stack", "review-1", "web.log")))
+        r = self.w.kendle("stack", "status", cwd=self.w.ws, check=False)
+        self.assertIn("inside a feature, the Ask desk or a review folder, or pass -f <name>", r.stderr)
+
+    def test_idle_stop_spares_a_desk_stack_whose_question_is_working(self):
+        from helpers import user, assistant
+        qid = self.w.kendle("ask", "does the login page load?").stdout.split()[1]
+        try:
+            path = self.w.transcript_path(qid, self.desk)
+            self.w.write_transcript(path, [user("does it load?"), assistant(stop="tool_use", tool=("Bash", {}))])
+            self.w.kendle("stack", "start", "web", cwd=self.desk)
+            self.w.kendle("stack", "wait", cwd=self.desk)
+            time.sleep(1.1)
+            idle = lambda: self.w.py("""
+                from kendle import stack
+                print(json.dumps(stack.stop_idle(minutes=1 / 60)))""")
+            self.assertEqual(idle(), [])                       # the question is mid-turn
+            self.w.write_transcript(path, [user("does it load?", ago=60), assistant("Yes", ago=60)])
+            self.assertEqual(idle(), ["ask"])
+        finally:
+            self.w.kendle("stop", qid)
+
+    def test_a_question_runs_the_app_on_stack_3_and_closing_it_leaves_the_features_alone(self):
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        self.w.kendle("stack", "start", "web", "-f", "two")
+        qid = self.w.kendle("ask", "does the login screen show an error on a wrong password?").stdout.split()[1]
+        out = self.w.kendle("stack", "start", "web", "-f", "ask", cwd=self.desk).stdout   # its own name: allowed
+        self.assertIn(f"stack 3 · app at http://127.0.0.1:{RO + 200}", out)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=self.desk).returncode, 0)
+        began = time.time()
+        self.w.kendle("agent", "stop", qid)
+        self.assertLess(time.time() - began, 5)                # the stack stops on its own; nobody waits
+        self.assertTrue(wait_for(lambda: self.state("ask") == "stopped", timeout=30), self.state("ask"))
+        self.assertEqual(self.state("one"), "up")
+        self.assertEqual(self.state("two"), "up")
+        self.assertTrue(answers(RO) and answers(RO + 100))
+
+    def test_replace_from_the_desk_or_a_review_stops_nothing(self):
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        self.w.kendle("stack", "start", "web", cwd=self.desk)
+        self.w.kendle("stack", "start", "web", cwd=self.review)
+        for name, folder in (("ask", self.desk), ("review-1", self.review)):
+            self.w.kendle("stack", "stop", cwd=folder)
+            self.w.kendle("stack", "start", "web", "-f", "two")
+            r = self.w.kendle("stack", "start", "web", "--replace", cwd=folder, check=False)
+            self.assertEqual(r.returncode, 1, name)
+            self.assertIn("all 3 stacks are running", r.stderr)
+            self.assertEqual([self.state(x) for x in ("one", "two")], ["up", "up"], name)
+            self.assertEqual(self.state("review-1" if name == "ask" else "ask"), "up", name)
+            self.w.kendle("stack", "stop", "-f", "two")
+            self.w.kendle("stack", "start", "web", cwd=folder)
+
+    def test_a_feature_with_replace_stops_a_feature_never_the_desk_or_a_review(self):
+        self.w.kendle("stack", "start", "web", cwd=self.desk)
+        self.w.kendle("stack", "start", "web", cwd=self.review)
+        self.w.kendle("stack", "start", "web", "-f", "one")      # the one slot left
+        r = self.w.kendle("stack", "start", "web", "-f", "two", check=False)
+        self.assertEqual(r.returncode, 1)
+        for held in ("ask (desk)", "review-1 (review)", "one (feature)"):
+            self.assertIn(held, r.stderr)
+        self.w.kendle("stack", "start", "web", "-f", "two", "--replace")
+        self.assertEqual(self.state("one"), "stopped")
+        self.assertEqual([self.state(x) for x in ("ask", "review-1")], ["up", "up"])
+        self.assertIn(self.state("two"), ("up", "starting"))
+
+    def test_with_two_stacks_and_no_feature_running_replace_stops_nothing(self):
+        toml = os.path.join(self.w.ws, "kendle.toml")
+        before = read(toml)
+        try:
+            self.w.write_toml(before.replace("[services]\n", "[services]\nstacks = 2\n"))
+            self.w.kendle("stack", "start", "web", cwd=self.desk)
+            self.w.kendle("stack", "start", "web", cwd=self.review)
+            r = self.w.kendle("stack", "start", "web", "-f", "one", "--replace", check=False)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("ask (desk), review-1 (review)", r.stderr)
+            self.assertNotIn("pass --replace", r.stderr)          # there is no feature stack to replace
+            self.assertEqual([self.state(x) for x in ("ask", "review-1")], ["up", "up"])
+        finally:
+            self.w.write_toml(before)
+
+    def test_the_refusal_says_all_stacks_are_running_or_why_a_free_one_is_kept(self):
+        self.w.kendle("stack", "start", "web", cwd=self.desk)
+        self.w.kendle("stack", "start", "web", cwd=self.review)
+        self.w.kendle("stack", "start", "web", "-f", "one")
+        r = self.w.kendle("stack", "start", "web", "-f", "two", check=False)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("all 3 stacks are running (ask (desk), one (feature), review-1 (review)) - stop one first "
+                      "(kendle stack stop -f <name>) or pass --replace to stop the oldest feature's", r.stderr)
+        self.assertNotIn("kept for the Ask desk", r.stderr)    # the desk and a review hold two: not the reserve's fault
+        for name in ("ask", "review-1"):
+            self.w.kendle("stack", "stop", "-f", name)
+        toml = os.path.join(self.w.ws, "kendle.toml")
+        before = read(toml)
+        try:
+            self.w.write_toml(before.replace("[services]\n", "[services]\nstacks = 2\n"))
+            r = self.w.kendle("stack", "start", "web", "-f", "two", check=False)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("1 feature stack is already running (one (feature)); the last stack is kept for the Ask "
+                          "desk and reviews - stop one first (kendle stack stop -f <name>) or pass --replace to stop "
+                          "the oldest feature's", r.stderr)
+            self.assertEqual(self.state("one"), "up")
+        finally:
+            self.w.write_toml(before)
+        self.w.kendle("stack", "start", "web", "-f", "two")
+        r = self.w.kendle("stack", "start", "web", "-f", "three", check=False)
+        self.assertIn("2 feature stacks are already running (one (feature), two (feature)); the last stack is kept",
+                      r.stderr)
+
+    def test_a_review_reads_its_own_errors_and_its_stack_stops_by_name_once_the_folder_is_gone(self):
+        gone = os.path.join(self.w.ws, "review-2")
+        self.w.git(self.w.app, "worktree", "add", "-q", "--detach", gone, "origin/main")
+        try:
+            self.w.kendle("stack", "start", "web", cwd=gone)
+            self.assertEqual(self.w.kendle("stack", "wait", cwd=gone).returncode, 0)
+            with open(os.path.join(self.w.state, "stack", "review-2", "web.log"), "a") as log:
+                log.write("ERROR: the login form posted nothing\n")
+            out = self.w.kendle("stack", "logs", "web", "--errors", cwd=gone).stdout
+            self.assertIn("ERROR: the login form posted nothing", out)
+            self.w.git(self.w.app, "worktree", "remove", "--force", gone)
+            self.assertEqual(self.w.kendle("stack", "stop", "-f", "review-2").stdout.strip(), "stopped: web")
+        finally:
+            self.w.kendle("stack", "stop", "-f", "review-2", check=False)
+            if os.path.isdir(gone):
+                self.w.git(self.w.app, "worktree", "remove", "--force", gone)
+
+    def test_stacks_must_be_two_or_more(self):
+        toml = os.path.join(self.w.ws, "kendle.toml")
+        before = read(toml)
+        try:
+            for bad in ("1", "true", '"3"'):
+                self.w.write_toml(before.replace("[services]\n", f"[services]\nstacks = {bad}\n"))
+                r = self.w.kendle("stack", "status", "-f", "one", check=False)
+                self.assertNotEqual(r.returncode, 0, bad)
+                self.assertIn("kendle.toml: services.stacks must be 2 or more", r.stderr, bad)
+        finally:
+            self.w.write_toml(before)
+
+
 CACHE, PG = free_port(), free_port()
 
 
@@ -197,11 +405,26 @@ class Compose(KendleTest):
         self.assertEqual(self.w.kendle("stack", "wait", "-f", "c1").returncode, 0)
         r = self.w.kendle("stack", "start", "cache", "-f", "c2", check=False)
         self.assertEqual(r.returncode, 1)
-        self.assertIn(f"cache would publish port {CACHE} in the second stack", r.stderr)
+        self.assertIn(f"cache would publish port {CACHE} in stack 2", r.stderr)
         self.assertIn(f'"${{KENDLE_PORT:-{CACHE}}}:<container port>"', r.stderr)
         self.assertIn(f"port = {CACHE}", r.stderr)
         self.assertNotIn("did not start", r.stderr)
         self.assertTrue(answers(CACHE))                        # the first stack is untouched
+
+    def test_the_refusal_names_the_stack_it_would_run_in(self):
+        review = os.path.join(self.w.ws, "review-1")
+        self.w.git(self.w.app, "worktree", "add", "-q", "--detach", review, "origin/main")
+        try:
+            with open(os.path.join(review, "docker-compose.yml"), "w") as f:
+                json.dump(self.COMPOSE, f)
+            self.w.kendle("stack", "start", "cache", "-f", "c1")
+            self.w.kendle("stack", "start", "db", "-f", "c2")
+            r = self.w.kendle("stack", "start", "cache", cwd=review, check=False)
+            self.assertEqual(r.returncode, 1)
+            self.assertIn(f"cache would publish port {CACHE} in stack 3, as in the first", r.stderr)
+        finally:
+            self.w.kendle("stack", "stop", "-f", "review-1", check=False)
+            self.w.git(self.w.app, "worktree", "remove", "--force", review)
 
 
 class HeldByAnotherStack(KendleTest):

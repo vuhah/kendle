@@ -34,12 +34,14 @@ bazel_root = ""              # default: bazel's own (/private/var/tmp/_bazel_$US
 disabled_plugins = []        # plugins switched off in kendle's sessions (they cost tokens every turn)
 
 [services]
-# Each feature can run its own copy of the app: `kendle stack start web api`. Two features at once:
-# the second runs with every shifted port moved by shift_by, on the second host.
+# Each feature, the Ask desk and each review folder can run its own copy of the app:
+# `kendle stack start web api`. Stack N runs with every shifted port moved by (N-1) x shift_by, on the
+# Nth host (or the last). Features hold all but the last stack; that one is kept for the desk and reviews.
 app = "web"                  # the service the browser opens; its URL is shown
+# stacks = 3                 # the most stacks at once (2 or more)
 # shift_by = 100
 # shift_ports = [3000, 8080] # default: the ports of the services kendle starts
-# idle_minutes = 30          # stop a feature's services when its sessions are quiet this long
+# idle_minutes = 30          # stop a folder's services when its sessions are quiet this long
 # intellij_dir = ".idea/runConfigurations"   # for `intellij =` services; may start with {workspace}
 # compose_file = "docker-compose.yml"
 
@@ -104,6 +106,7 @@ needs = ["test"]
 # Each session kind starts with a system note; replace any of them here. {fields} are filled in:
 #   all:      {remote} {base} {docs}
 #   manager:  {feature} {path} {branch}     sub, fresh, promote: {feature}     review: {file}
+#   stack:    added to ask and review: they may run their own folder's services (kendle stack)
 # ask = """
 # You are the Ask desk. ...
 # """

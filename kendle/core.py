@@ -27,11 +27,13 @@ SIDEBAR_WIDTH = 34
 NAME_RE  = r"[a-z0-9][a-z0-9-]{0,39}"
 RESERVE_GB = CONFIG["workspace"]["reserve_gb"]      # free disk a new feature needs
 
-# Sub-agents never edit. Plan mode blocks writes, Bash included (tested 2026-09-10);
-# the deny list closes the edit tools and stops the model proposing to leave plan
-# mode. --disallowedTools is variadic, so the prompt must come BEFORE it.
+# Read-only sessions never edit. The deny list closes the edit tools and stops the model proposing
+# to leave plan mode; plan mode itself does not block Bash (tested 2026-10), so what
+# a session runs is held back by its prompt. --disallowedTools is variadic, so the prompt must come
+# BEFORE it. The Ask desk and reviews may also run their own folder's services (kendle stack).
 READ_ONLY = ["--permission-mode", "plan",
              "--disallowedTools", "Edit", "Write", "NotebookEdit", "ExitPlanMode"]
+STACK_READ_ONLY = READ_ONLY + ["--allowedTools", "Bash(kendle stack *)"]
 ASK = "ask"                                         # the Ask desk's registry name
 ASK_PATH = os.path.join(HUB, CONFIG["workspace"]["ask"])   # one worktree on the latest base
 
@@ -40,10 +42,13 @@ TASK_HINT = "If the user mentions a task or ticket, read it with `kendle task <i
 
 
 def note(name, **fields):
-    """A session prompt from kendle.toml (or the default), with the workspace's facts filled in. With a
-    task tracker set up, the sessions that talk to the user are told how to read a task."""
+    """A session prompt from kendle.toml (or the default), with the workspace's facts filled in. The
+    Ask desk and reviews are told they may run their folder's services; with a task tracker set up,
+    the sessions that talk to the user are told how to read a task."""
     text = config.fill(CONFIG["prompts"][name], remote=REMOTE, base=BASE,
                        docs=CONFIG["workspace"]["docs"], **fields)
+    if name in ("ask", "review") and "kendle stack" not in text:
+        text += " " + note("stack")
     if CONFIG["task"]["fetch"] and name in ("ask", "review", "manager") and "kendle task" not in text:
         text += " " + TASK_HINT
     return text
@@ -708,7 +713,53 @@ def stop(key):
             if r["id"] == e["id"]:
                 r["pane"], r["stopped"] = None, now()
     update(mark)
+    if e["kind"] == "question":
+        _desk_closed()
     return e
+
+
+def _desk_name():
+    """Mirrors stack.desk_name() - stack imports core, so core keeps its own copy; change both together."""
+    return os.path.basename(ASK_PATH)
+
+
+def _stack_running(name):
+    """Whether a folder's stack may still be running: a service file not marked stopped. Only a file
+    check (no ps) - reap() runs on every refresh. It mirrors stack.py's state files (stack imports
+    core); a change to their layout changes this too."""
+    for path in glob.glob(os.path.join(STATE, "stack", name, "*.json")):
+        if os.path.basename(path) == "stack.json":
+            continue
+        try:
+            with open(path) as fh:
+                if json.load(fh).get("stopped") is False:
+                    return True
+        except (OSError, ValueError):
+            continue
+    return False
+
+
+def _stop_stack_now(name, why):
+    """Stop a folder's stack and wait for it - before its code moves or its folder goes."""
+    if _stack_running(name):
+        from kendle import stack                     # stack imports core
+        stack.stop(name, reason=why)
+
+
+def _stop_stack_detached(name, why):
+    """Stop a folder's stack in the background: it can take minutes (a compose stop), and nothing that
+    closes a session - tree(), the sidebar's refresh, a start - may wait for it."""
+    if _stack_running(name):
+        subprocess.Popen([KENDLE, "stack", "stop", "-f", name, "--why", why], cwd=HUB, start_new_session=True,
+                         env=dict(os.environ, KENDLE_WORKSPACE=HUB), stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _desk_closed():
+    """The last question on the desk has closed: its stack stops too."""
+    snap = snapshot()
+    if not any(e["kind"] == "question" and is_live(e, snap) for e in load()):
+        _stop_stack_detached(_desk_name(), "question closed")
 
 
 def adopt(name, sid):
@@ -749,6 +800,8 @@ def reap():
             if r["id"] in gone and r.get("pane") == gone[r["id"]]["pane"]:
                 r["pane"], r["stopped"] = None, now()
     update(mark)
+    if any(e["kind"] == "question" for e in gone.values()):
+        _desk_closed()
 
 
 def tree():
@@ -860,7 +913,8 @@ def desk():
 
 def refresh_desk():
     """Move the desk to the latest base, but never while a question is running there
-    (code must not shift under a live answer) and never over local changes. True if it moved."""
+    (code must not shift under a live answer) and never over local changes. True if it moved.
+    A desk stack still running is stopped first: code never moves under running services."""
     if not os.path.isdir(ASK_PATH):
         raise RuntimeError(f"no Ask desk - create it: git -C {os.path.relpath(PRIMARY, HUB)} worktree add --detach "
                            f"{os.path.relpath(ASK_PATH, PRIMARY)} {UPSTREAM}")
@@ -871,6 +925,8 @@ def refresh_desk():
         return False
     if _git_desk("fetch", "-q", REMOTE, BASE, timeout=300).returncode:
         return False
+    if _git_desk("rev-parse", "HEAD").stdout.strip() != _git_desk("rev-parse", UPSTREAM).stdout.strip():
+        _stop_stack_now(_desk_name(), "the desk moved to the latest base")
     return _git_desk("checkout", "--quiet", "--detach", UPSTREAM).returncode == 0
 
 
@@ -916,6 +972,8 @@ def _start_review(change, extra):
             release_review(e["id"], keep_folder=True)
     git("fetch", "-q", REMOTE, ref, cwd=PRIMARY)
     head = git("rev-parse", "FETCH_HEAD", cwd=PRIMARY)
+    if prior and os.path.isdir(path) and git("rev-parse", "HEAD", cwd=path) != head:
+        _stop_stack_now(f"review-{slot}", "the review folder moved to a new revision")   # a new folder's was stopped on release
     if os.path.isdir(path):
         git("checkout", "--quiet", "--detach", head, cwd=path)
     else:
@@ -929,12 +987,13 @@ def _start_review(change, extra):
     if prior:
         sid = prior["id"]
         back = (f"I am back - this folder now holds {host.revision} {patch} of {host.noun} {number}. "
-                "Nothing else changed; carry on from where we were.")
-        argv = [claude_bin(), back, *lean(), *READ_ONLY, "--resume", sid, *extra]
+                "Nothing else changed; carry on from where we were. " + note("stack"))
+        # --append-system-prompt is ignored on --resume: the stack line comes with the message
+        argv = [claude_bin(), back, *lean(), *STACK_READ_ONLY, "--resume", sid, *extra]
     else:
         sid = str(uuid.uuid4())
         brief = host.brief(number, patch, subject, author, len(files), base)
-        argv = [claude_bin(), brief, *lean(), *READ_ONLY, "--append-system-prompt", system,
+        argv = [claude_bin(), brief, *lean(), *STACK_READ_ONLY, "--append-system-prompt", system,
                 "--session-id", sid, "-n", f"review-{number}", *extra]
     pane = new_pane(path, argv, f"review-{number}")
     entry = {"id": sid, "feature": f"review-{slot}", "kind": "review", "parent": None, "host": host.name,
@@ -987,13 +1046,14 @@ def save_review(e):
 
 
 def release_review(key, keep_folder=False):
-    """Close a review: keep its findings, stop its session, give the folder back."""
+    """Close a review: keep its findings, stop its session and its folder's services, give the folder back."""
     rows = [x for x in load() if x["kind"] == "review"]
     by_change = [x for x in rows if not x.get("released") and str(x.get("change")) == str(key)]
     e = by_change[0] if len(by_change) == 1 else find(rows, key)    # the change number, or a session id
     saved = save_review(e)
     if e.get("pane"):
         stop(e["id"])
+    _stop_stack_now(e["feature"], "review closed")
     path = e["cwd"]
     if not keep_folder and os.path.isdir(path):
         git("worktree", "remove", "--force", path, cwd=PRIMARY)
@@ -1006,10 +1066,10 @@ def start_question(text, extra=()):
     if not text.strip():
         raise ValueError("the question is empty")
     ensure_session()
-    reap()
-    refresh_desk()
+    refresh_desk()                                   # first: a desk that moves stops its stack here, and
+    reap()                                           # reap() then finds nothing left to stop
     sid = str(uuid.uuid4())
-    argv = [claude_bin(), (" " + text) if text.startswith("-") else text, *lean(), *READ_ONLY,
+    argv = [claude_bin(), (" " + text) if text.startswith("-") else text, *lean(), *STACK_READ_ONLY,
             "--append-system-prompt", note("ask"), "--session-id", sid,
             "-n", "ask-" + re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:30], *extra]
     pane = new_pane(ASK_PATH, argv, "ask")
@@ -1036,7 +1096,8 @@ def _reopen_question(key, extra):
     if not transcript(e["id"], e.get("cwd")):
         raise LookupError("that question's history is gone - press a to ask it again")
     refresh_desk()
-    argv = [claude_bin(), "I am back - carry on from where we were.", *lean(), *READ_ONLY,
+    # --append-system-prompt is ignored on --resume: the stack line comes with the message
+    argv = [claude_bin(), "I am back - carry on from where we were. " + note("stack"), *lean(), *STACK_READ_ONLY,
             "--resume", e["id"], *extra]
     pane = new_pane(ASK_PATH, argv, "ask")
     update(lambda rows: [r.update(pane=pane, server=snapshot()[0], started=now(), stopped=None)

@@ -1,6 +1,9 @@
 """Features, sessions and their states - with a fake claude, on a tmux socket of the test's own."""
-import json, os, subprocess, time, unittest
-from helpers import RUN, KendleTest, assistant, user, read, wait_for, sh
+import json, os, subprocess, sys, time, unittest
+from helpers import FAKEBIN, RUN, KendleTest, assistant, free_port, user, read, wait_for, sh
+
+STACK_RULE = "Bash(kendle stack *)"
+STACK_LINE = "you may run kendle stack commands (start, stop, restart, wait, status, logs) for its own services"
 
 
 class Features(KendleTest):
@@ -180,6 +183,145 @@ class Sessions(KendleTest):
         mid = out.split()[-1]
         call = wait_for(lambda: [c for c in self.w.claude_calls() if mid in c["args"]])[0]
         self.assertIn("agent_docs/retry-once/requirement.md", call["args"][0])
+
+
+class ReadOnlySessionsRunTheirServices(KendleTest):
+    """The desk's sessions may run kendle stack, told so in the prompt and allowed by one rule; subs may not."""
+
+    def args_for(self, sid):
+        return wait_for(lambda: [c for c in self.w.claude_calls() if sid in c["args"]])[-1]["args"]
+
+    def test_new_and_reopened_questions_carry_the_rule_and_the_line(self):
+        qid = self.w.kendle("ask", "does the app start?").stdout.split()[1]
+        args = self.args_for(qid)
+        self.assertEqual(args[args.index("--allowedTools") + 1], STACK_RULE)
+        self.assertEqual(args[args.index("--permission-mode") + 1], "plan")
+        for tool in ("Edit", "Write", "NotebookEdit", "ExitPlanMode"):
+            self.assertIn(tool, args[args.index("--disallowedTools"):args.index("--allowedTools")])
+        self.assertEqual(args[args.index("--allowedTools") + 2], "--append-system-prompt")   # flags end the variadic lists
+        note = args[args.index("--append-system-prompt") + 1]
+        self.assertIn(STACK_LINE, note)
+        self.assertIn("never seed or change rows unless the user asks", note)
+        self.w.write_transcript(self.w.transcript_path(qid, os.path.join(self.w.ws, "ask")),
+                                [user("does the app start?"), assistant("Yes")])
+        self.w.kendle("stop", qid)
+        self.w.py(f"from kendle import core; core.reopen_question({qid!r})")
+        args = wait_for(lambda: [c["args"] for c in self.w.claude_calls() if "--resume" in c["args"] and qid in c["args"]])[0]
+        self.assertTrue(args[0].startswith("I am back - carry on from where we were. "), args[0])
+        self.assertIn(STACK_LINE, args[0])                     # --append-system-prompt is ignored on --resume
+        self.assertEqual(args[args.index("--allowedTools") + 1], STACK_RULE)
+        self.assertEqual(args[args.index("--allowedTools") + 2], "--resume")
+        self.w.kendle("stop", qid)
+
+    def test_sub_agents_get_no_allow_rule(self):
+        self.w.kendle("new", "nosub")
+        self.w.kendle("manager", "nosub")
+        sid = self.w.kendle("sub", "nosub", "probe", "look").stdout.split()[1]
+        args = self.args_for(sid)
+        self.assertNotIn("--allowedTools", args)
+        self.assertNotIn(STACK_LINE, args[args.index("--append-system-prompt") + 1])
+        self.w.kendle("stop", "nosub")
+
+
+DESK_PORT, PROBE_PORT = free_port(), free_port()
+
+
+class DeskStack(KendleTest):
+    """The desk's stack stops when its last question closes, and before the desk moves - never while
+    it stays put."""
+    TOML = f"""
+        [services.web]
+        run = "exec {sys.executable} {os.path.join(FAKEBIN, 'listen')} {{port}}"
+        port = {DESK_PORT}
+
+        [services.probe]
+        run = "exec {sys.executable} {os.path.join(FAKEBIN, 'listen-note-head')} {{port}} {{workspace}}/heads-at-stop.txt"
+        port = {PROBE_PORT}
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.desk = os.path.join(cls.w.ws, "ask")
+
+    def tearDown(self):
+        for q in json.loads(self.w.kendle("list", "--json").stdout)["ask"]:
+            if q["state"] != "closed":
+                self.w.kendle("stop", q["id"], check=False)
+        self.w.kendle("stack", "stop", "-f", "ask", check=False)
+
+    def start_stack(self):
+        self.w.kendle("stack", "start", "web", cwd=self.desk)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=self.desk).returncode, 0)
+
+    def state(self, service="web"):
+        rows = [l.split() for l in self.w.kendle("stack", "status", "-f", "ask").stdout.splitlines()
+                if l.startswith("  ") and " port " in l and l.split()[1] == service]
+        return rows[0][0] if rows else None
+
+    def test_closing_the_last_question_stops_the_desk_stack(self):
+        first = self.w.kendle("ask", "first question").stdout.split()[1]
+        second = self.w.kendle("ask", "second question").stdout.split()[1]
+        self.start_stack()
+        self.w.kendle("stop", first)
+        time.sleep(1)
+        self.assertEqual(self.state(), "up")                   # another question still uses it
+        began = time.time()
+        self.w.kendle("stop", second)
+        self.assertLess(time.time() - began, 5)                # the stop runs on its own, nobody waits
+        self.assertTrue(wait_for(lambda: self.state() == "stopped", timeout=30), self.state())
+        log = read(os.path.join(self.w.state, "stack", "ask", "web.log"))
+        self.assertIn("stopped by kendle stack - question closed", log)
+
+    def test_a_question_whose_pane_is_gone_stops_the_desk_stack_too(self):
+        qid = self.w.kendle("ask", "pane goes away").stdout.split()[1]
+        self.start_stack()
+        pane = next(q for q in json.loads(self.w.kendle("list", "--json").stdout)["ask"] if q["id"] == qid)["pane"]
+        self.w.tmux("kill-pane", "-t", pane)
+        self.w.kendle("list")                                  # reap marks it stopped
+        self.assertTrue(wait_for(lambda: self.state() == "stopped", timeout=30), self.state())
+
+    def test_a_new_question_stops_the_desk_stack_only_when_the_desk_moves(self):
+        self.start_stack()
+        qid = self.w.kendle("ask", "the desk is current").stdout.split()[1]
+        self.assertEqual(self.state(), "up")                   # nothing moved: it keeps running
+        self.w.kendle("stop", qid)
+        self.assertTrue(wait_for(lambda: self.state() == "stopped", timeout=30))
+        self.start_stack()
+        self.w.push_ref({"new.txt": "1"}, "Newer main", "refs/heads/main")
+        before = self.w.git(self.desk, "rev-parse", "HEAD")
+        self.w.kendle("ask", "the desk moves")
+        self.assertNotEqual(self.w.git(self.desk, "rev-parse", "HEAD"), before)
+        self.assertEqual(self.state(), "stopped")              # stopped before the checkout, not after
+        self.assertIn("the desk moved to the latest base", read(os.path.join(self.w.state, "stack", "ask", "web.log")))
+
+    def test_a_question_started_as_the_desk_moves_stops_its_stack_once_and_before_the_checkout(self):
+        """An old question's pane is gone (not yet reaped) and main has moved: the next question moves
+        the desk. The stack stops once, for the move, while the desk still holds the old commit."""
+        old = self.w.kendle("ask", "an old question").stdout.split()[1]
+        self.w.kendle("stack", "start", "web", "probe", cwd=self.desk)
+        self.assertEqual(self.w.kendle("stack", "wait", cwd=self.desk).returncode, 0)
+        heads = os.path.join(self.w.ws, "heads-at-stop.txt")
+        if os.path.exists(heads):
+            os.remove(heads)
+        logs = {s: os.path.join(self.w.state, "stack", "ask", f"{s}.log") for s in ("web", "probe")}
+        seen = {s: len(read(path)) for s, path in logs.items()}  # the class shares one desk: earlier tests' lines
+        self.w.push_ref({"moved.txt": "1"}, "Main moves on", "refs/heads/main")
+        pane = next(q for q in json.loads(self.w.kendle("list", "--json").stdout)["ask"] if q["id"] == old)["pane"]
+        self.w.tmux("kill-pane", "-t", pane)
+        before = self.w.git(self.desk, "rev-parse", "HEAD")
+        self.w.kendle("ask", "the desk moves as an old answer is reaped")
+        after = self.w.git(self.desk, "rev-parse", "HEAD")
+        self.assertNotEqual(after, before)
+        self.assertEqual([self.state(), self.state("probe")], ["stopped", "stopped"])   # by the time it opens
+        self.assertEqual(read(heads).split(), [before])        # stopped once, on the old code
+        time.sleep(3)                                          # room for a stray background stop
+        for service in ("web", "probe"):
+            log = read(logs[service])[seen[service]:]
+            self.assertEqual(log.count("stopped by kendle stack"), 1, (service, log))
+            self.assertIn("stopped by kendle stack - the desk moved to the latest base", log)
+            self.assertNotIn("question closed", log)
+        self.assertEqual(read(heads).split(), [before])
 
 
 class TeamFlags(KendleTest):
