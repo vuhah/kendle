@@ -661,9 +661,11 @@ class Sidebar:
         else:
             self.say("cancelled")
 
-    def keep_width(self):
+    def keep_width(self, start=False):
         """Keep the width the user chose: re-apply it when the window resizes, and remember a
-        border the user drags."""
+        border the user drags. Every call first fits the screen to the real size, height-only
+        resizes too; `start` repaints it whole once at start-up."""
+        core.fit_screen(self.scr, start)
         win = core.tmux("display", "-p", "-t", f"{core.SESSION}:console", "#{window_width}", check=False)
         pane = core.tmux("display", "-p", "-t", f"{core.SESSION}:console.0", "#{pane_width}", check=False)
         if win and win != self.window_width:
@@ -785,7 +787,7 @@ class Sidebar:
         curses.mousemask(curses.ALL_MOUSE_EVENTS)
         curses.mouseinterval(0)
         self.colors()
-        self.keep_width()
+        self.keep_width(start=True)
         self.refresh_now()
         if "KENDLE_RELOADED" in os.environ:           # restarted on a changed kendle.toml
             self.sel = os.environ.pop("KENDLE_RELOADED") or None

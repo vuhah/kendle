@@ -230,7 +230,10 @@ class Logs:
         i = self.half if self.split else 0
         self.scroll[i] = max(0, self.scroll[i] + n)
 
-    def remember_width(self):
+    def remember_width(self, start=False):
+        """Fit the screen to the real size (whole at start-up), and remember a border the user
+        dragged (the window kept its width)."""
+        core.fit_screen(self.scr, start)
         win = core.tmux("display", "-p", "-t", f"{core.SESSION}:console", "#{window_width}", check=False)
         mine = core.tmux("display", "-p", "-t", os.environ.get("TMUX_PANE", ""), "#{pane_width}", check=False)
         if win == self.window_width and mine.isdigit():
@@ -241,7 +244,7 @@ class Logs:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         curses.curs_set(0); self.scr.keypad(True); self.scr.timeout(200)
         curses.mousemask(curses.ALL_MOUSE_EVENTS); curses.mouseinterval(0)
-        self.colors(); self.remember_width()
+        self.colors(); self.remember_width(start=True)
         keys = {curses.KEY_RIGHT: lambda: self.switch(1), "l": lambda: self.switch(1),
                 curses.KEY_LEFT: lambda: self.switch(-1), "h": lambda: self.switch(-1),
                 "v": lambda: setattr(self, "split", not self.split), "\t": lambda: setattr(self, "half", 1 - self.half),
