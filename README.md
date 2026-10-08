@@ -125,6 +125,7 @@ a saved change on its own, once the file loads cleanly; until then it says what 
 | `[gate]` | git checks (rebased, commits ahead, clean tree, stray files, message) and named steps |
 | `[review]` | `gerrit`, `github` or `gitlab` - guessed from the remote when unset |
 | `[task]` | a command that prints a task from your tracker: `kendle task PROJ-12` |
+| `[autopilot]` | GitHub issues to merged pull requests: who may file them, rounds, merge method, allowed commands |
 | `[prompts]` | the note each kind of session starts with, if you want your own |
 
 ## The console
@@ -138,6 +139,29 @@ a saved change on its own, once the file loads cleanly; until then it says what 
 
 It runs on a tmux socket of its own per workspace (`kendle-<hash of the path>`), so it never touches
 your other tmux sessions or another workspace's console.
+
+## Autopilot
+
+File an issue, add a label, and come back to a merged pull request. `kendle autopilot start` runs a
+loop in the console that picks up open issues labelled `autopilot` (`[autopilot] label`) and opened
+by an account in `[autopilot] authors` - nobody else's, so strangers cannot set your teams to work.
+For each one:
+
+1. a feature team builds it; its manager stands in for you at the spec, the plan and the push, and
+   ends every turn with `AUTOPILOT: READY` or `AUTOPILOT: STUCK <why>`;
+2. kendle rebases the commit if the base moved, runs `kendle gate`, pushes, and opens a pull request
+   that closes the issue;
+3. a read-only review session reviews it; kendle posts the review on the pull request and sends the
+   findings back to the team, for at most `rounds` rounds;
+4. once the review approves and the checks pass, kendle merges it, tells both sessions they are done,
+   stops them and removes the worktree.
+
+The team edits and commits unasked, and runs the shell commands kendle allows plus your
+`[autopilot] allow`; it can never push or use `gh` - kendle does everything outside the worktree,
+through `gh` (signed in). When something needs a person - the round limit, a permission the team
+was not given, Claude Code's folder-trust question - the issue is labelled `needs-human`, the
+console shows it, and you get a notification. `kendle autopilot adopt <issue> <feature>` hands a
+team you started by hand to the loop. The design: [docs/autopilot.md](docs/autopilot.md).
 
 ## What it promises
 

@@ -98,7 +98,7 @@ class Workspace:
     def env(self, **extra):
         env = {k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE", "KENDLE_", "TMUX"))}
         env.update(KENDLE_WORKSPACE=self.ws, KENDLE_STATE=self.state, KENDLE_SOCKET=self.socket,
-                   KENDLE_PROJECTS=self.projects, KENDLE_NO_SIDEBAR="1", PATH=FAKEBIN + os.pathsep + env["PATH"])
+                   KENDLE_PROJECTS=self.projects, KENDLE_NO_SIDEBAR="1", KENDLE_NO_NOTIFY="1", PATH=FAKEBIN + os.pathsep + env["PATH"])
         env.update(extra)
         return env
 

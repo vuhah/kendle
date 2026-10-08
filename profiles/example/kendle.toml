@@ -90,6 +90,16 @@ lane = "web"
 full = true                  # only with `kendle gate --full`
 needs = ["test"]
 
+[autopilot]
+# GitHub issues to merged pull requests, unattended (docs/autopilot.md). Needs gh, signed in.
+# enabled = true
+# authors = ["your-github-login"]    # only issues these accounts opened ...
+# label = "autopilot"                # ... and that carry this label
+# max_active = 2                     # issues worked at once
+# rounds = 3                         # review rounds before it stops and asks you
+# merge = "squash"
+# allow = ["Bash(npm test:*)", "Bash(npm run:*)"]   # commands the team may run unasked
+
 [prompts]
 # Each session kind starts with a system note; replace any of them here. {fields} are filled in:
 #   all:      {remote} {base} {docs}

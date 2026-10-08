@@ -106,14 +106,48 @@ def is_live(entry, snap):
 
 
 TRUST_RE = re.compile(r"trust (this|the files in this) folder", re.I)
+PERMISSION_RE = re.compile(r"Do you want to (proceed|make this edit|create|allow|run)", re.I)
+
+
+def screen(e):
+    """What a live session's screen waits for that its transcript cannot show: 'trust' (Claude Code's
+    question about trusting the folder, asked before any chat), 'permission' (a tool it may not run
+    unasked), or None."""
+    r = subprocess.run(["tmux", "-L", SOCKET, "capture-pane", "-p", "-t", e["pane"]],
+                       capture_output=True, text=True)
+    return "trust" if TRUST_RE.search(r.stdout) else "permission" if PERMISSION_RE.search(r.stdout) else None
 
 
 def held_at_trust(e):
-    """Whether a live session waits at Claude Code's question about trusting its folder - asked
-    before any chat the first time Claude Code runs in a folder, so only the screen shows it."""
-    r = subprocess.run(["tmux", "-L", SOCKET, "capture-pane", "-p", "-t", e["pane"]],
-                       capture_output=True, text=True)
-    return bool(TRUST_RE.search(r.stdout))
+    return screen(e) == "trust"
+
+
+def type_into(e, text):
+    """Send a live session its next message, however many lines: pasted as one (bracketed paste),
+    then Enter - the session goes on running, with any teammates it has in process."""
+    buf = f"kendle-{uuid.uuid4().hex[:8]}"
+    subprocess.run(["tmux", "-L", SOCKET, "load-buffer", "-b", buf, "-"], input=text, text=True, check=True)
+    tmux("paste-buffer", "-p", "-d", "-b", buf, "-t", e["pane"])
+    time.sleep(0.5)                                  # let the paste land before it is submitted
+    tmux("send-keys", "-t", e["pane"], "Enter")
+
+
+def reply_since(e, since):
+    """The text of the session's turn that answered a message sent at `since` (epoch seconds), or ""."""
+    t = transcript(e["id"], e.get("cwd"))
+    texts = []
+    for ev in events_backwards(t) if t else []:
+        stamp = epoch(ev.get("timestamp"))
+        if stamp is not None and stamp < int(since):
+            break
+        msg = ev.get("message") or {}
+        content = msg.get("content")
+        if ev.get("type") == "assistant":
+            texts += [c.get("text", "") for c in reversed(content or []) if isinstance(c, dict) and c.get("type") == "text"]
+        elif ev.get("type") == "user" and not ev.get("isMeta") and not (
+                isinstance(content, list) and any(isinstance(c, dict) and c.get("type") == "tool_result" for c in content)):
+            break                                    # the message this turn answers
+    return "\n\n".join(t for t in reversed(texts) if t.strip())
 
 
 def display_pane(snap=None):

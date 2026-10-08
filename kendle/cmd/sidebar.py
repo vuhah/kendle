@@ -6,7 +6,7 @@
   K             stop session      < >    narrower / wider          r     refresh
   q             close the console (every session keeps running)
 """
-import curses, locale, os, signal, sys, textwrap, threading, time, traceback
+import curses, json, locale, os, signal, sys, textwrap, threading, time, traceback
 os.environ.setdefault("ESCDELAY", "25")
 if not any(os.environ.get(k) for k in ("LC_ALL", "LC_CTYPE", "LANG")):
     os.environ["LC_CTYPE"] = "en_US.UTF-8"
@@ -66,6 +66,31 @@ def _last_reply(path):
     return None
 
 
+def autopilot_rows():
+    """One line per issue autopilot is working on or that waits for you - read from its records."""
+    try:
+        with open(os.path.join(core.STATE, "autopilot.json")) as f:
+            recs = json.load(f)
+    except (OSError, ValueError):
+        return []
+    rounds = core.CONFIG["autopilot"]["rounds"]
+    what = {"building": lambda r: "team at work" + (f" · round {r['round']}" if r.get("round") else ""),
+            "reviewing": lambda r: f"review {r['round']}/{rounds}",
+            "merging": lambda r: "approved · waiting for CI",
+            "closing": lambda r: "merged · wrapping up",
+            "stuck": lambda r: "needs you: " + (r.get("why") or "")}
+    return [{"text": f"#{r['issue']} {what[r['phase']](r)}", "stuck": r["phase"] == "stuck"}
+            for r in recs if r.get("phase") in what]
+
+
+def autopilot_note():
+    try:
+        with open(os.path.join(core.STATE, "autopilot.msg")) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
 class Sidebar:
     def __init__(self, scr):
         self.scr = scr
@@ -81,6 +106,7 @@ class Sidebar:
         self.window_width = None
         self.desk, self.questions, self.pending_show = None, [], None
         self.reviews = []
+        self.autopilot, self.autopilot_said = [], autopilot_note()
         self.rss, self.need_you = {}, 0
         self.pending_data, self.wake = None, threading.Event()
         self.stacks, self.logs_shown = set(), False   # features whose services run; is the column up?
@@ -130,7 +156,7 @@ class Sidebar:
         return {"tree": tree, "desk": core.desk(), "questions": core.questions(), "reviews": core.reviews(),
                 "slot": core.display_pane(snap),
                 "panes": set(snap[1]), "free": core.free_gb(), "rss": core.rss_by_pane(),
-                "stacks": set(_stack.running_stacks())}
+                "stacks": set(_stack.running_stacks()), "autopilot": autopilot_rows()}
 
     def fetcher(self):
         while True:
@@ -145,7 +171,11 @@ class Sidebar:
         self.tree, self.desk, self.questions = data["tree"], data["desk"], data["questions"]
         self.reviews = data["reviews"]
         self.slot, self.free, self.rss = data["slot"], data["free"], data["rss"]
-        self.stacks = data["stacks"]
+        self.stacks, self.autopilot = data["stacks"], data["autopilot"]
+        note = autopilot_note()
+        if note and note != self.autopilot_said:     # stuck, merged, waiting at a question: say it once
+            self.autopilot_said = note
+            self.say("autopilot " + note, error="stuck" in note or "waits" in note)
         self.logs_shown = bool(core.logs_pane())
         if self.viewer and self.viewer["pane"] not in data["panes"]:
             self.viewer = None
@@ -164,12 +194,18 @@ class Sidebar:
         idle = [f for f in self.tree if not f.get("_active")]
         self.need_you = sum(1 for f in active if f["status"] == "needs you") + \
             sum(1 for q in self.questions if q["state"] in ("answered", "trust?")) + \
-            sum(1 for r in self.reviews if r["state"] == "trust?")
+            sum(1 for r in self.reviews if r["state"] == "trust?") + \
+            sum(1 for a in self.autopilot if a["stuck"])
         rows = []
         if self.desk:
             rows.append({"kind": "desk", "key": "desk"})
             if "desk" not in self.folded:
                 rows += [{"kind": "question", "key": q["id"], "e": q} for q in self.questions]
+            rows.append({"kind": "gap"})
+        if self.autopilot:
+            rows.append({"kind": "header", "text": f"AUTOPILOT  {len(self.autopilot)}"})
+            rows.append({"kind": "gap"})
+            rows += [dict(a, kind="aprow") for a in self.autopilot]
             rows.append({"kind": "gap"})
         if self.reviews:
             rows.append({"kind": "header", "text": f"REVIEW  {len(self.reviews)} of {core.REVIEW_SLOTS}"})
@@ -288,6 +324,10 @@ class Sidebar:
             return
         if kind == "header":
             self.put(y, 2, r["text"], "dim")
+            return
+        if kind == "aprow":
+            self.put(y, 2, "·", "faint")
+            self.put(y, 4, fit(r["text"], w - 6), "yellow" if r["stuck"] else "dim")
             return
         if sel:
             self.put(y, 0, " " * (w - 1), selected=True)

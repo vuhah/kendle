@@ -50,6 +50,20 @@ DEFAULTS = {
         "cleanup": [],             # untracked files steps leave behind, removed before and after
         "steps": {},               # [gate.steps.<name>]: run, when, full, lane, needs, timeout, warn_if
     },
+    "autopilot": {                 # issues to merged pull requests, unattended - docs/autopilot.md
+        "enabled": False,          # kendle autopilot run refuses unless true
+        "repo": None,              # owner/name on GitHub; unset: read from the remote's URL
+        "label": "autopilot",      # work starts on open issues with this label ...
+        "authors": [],             # ... opened by one of these GitHub accounts (required)
+        "max_active": 2,           # issues worked at once
+        "rounds": 3,               # review rounds before it stops and asks you
+        "fixes": 3,                # gate, rebase or CI failures sent back to the team, per issue
+        "nudges": 5,               # turns that ended without READY or STUCK, per issue
+        "interval": 120,           # seconds between ticks
+        "merge": "squash",         # squash, merge or rebase
+        "checks": True,            # merge only after the pull request's checks ran and passed
+        "allow": [],               # commands the team may run unasked, as Claude Code rules: "Bash(npm test:*)"
+    },
     "prompts": {},                 # see PROMPTS below; any of them can be replaced
 }
 

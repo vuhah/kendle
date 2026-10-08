@@ -75,10 +75,20 @@ itself updates `team.md` and asks the user to restart it with `kendle fresh <fea
 **Talking to the user.** Verdict first, then at most 5 short lines in plain words. One clear
 question at a time, with your recommendation.
 
+**Autopilot.** A message that starts with `[kendle autopilot]` means kendle runs this feature for a
+GitHub issue and nobody answers. The manager stands in for the user at every stop above: it answers
+the planner with its own recommendation, approves the spec and the plan once the auditor approves
+them, writes each such decision in `team.md` under "Autopilot decisions", and never waits for
+"plan" or "push". The shipper still makes the one commit and runs `kendle gate`; nobody pushes or
+uses `gh` - kendle pushes, opens the pull request, has it reviewed and sends the findings back as
+the next message. Every manager reply ends with one line, `AUTOPILOT: READY` (the commit is ready)
+or `AUTOPILOT: STUCK <why>` (only a person can unblock it).
+
 ## 3. The Ask desk and reviews
 
 The Ask desk answers questions on the latest {upstream}, read-only, verdict first. A review session
-reads someone else's change, read-only, and never posts anything - the user decides what to send.
+reads someone else's change, read-only, and never posts anything - the user decides what to send
+(under autopilot, kendle posts the review's reply on the pull request).
 
 ## 4. Conventions - obeyed when building, checked in every review
 

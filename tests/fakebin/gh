@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""A stand-in for `gh api` in tests: GitHub's REST routes kendle autopilot uses, over a JSON file
+($KENDLE_STATE/gh.json) that the test seeds and reads back. Errors look like gh's: "(HTTP 404)"."""
+import json, os, re, sys
+from urllib.parse import parse_qs, urlparse
+
+STATE = os.path.join(os.environ["KENDLE_STATE"], "gh.json")
+args = sys.argv[1:]
+if args[:1] != ["api"]:
+    sys.exit("fake gh: only `gh api` is understood")
+method, path, body = "GET", None, None
+i = 1
+while i < len(args):
+    if args[i] == "-X":
+        method, i = args[i + 1], i + 2
+    elif args[i] == "-H":
+        i += 2
+    elif args[i] == "--input":
+        body, i = json.load(sys.stdin), i + 2
+    else:
+        path, i = args[i], i + 1
+try:
+    with open(STATE) as f:
+        db = json.load(f)
+except OSError:
+    db = {}
+for key in ("issues", "pulls", "comments", "labels", "checks", "calls"):
+    db.setdefault(key, [] if key in ("comments", "labels", "calls") else {})
+db["calls"].append([method, path, body])
+url = urlparse(path)
+q = {k: v[0] for k, v in parse_qs(url.query).items()}
+route = re.sub(r"^repos/[^/]+/[^/]+/", "", url.path)
+
+
+def fail(status, text):
+    save()
+    print(f"gh: {text} (HTTP {status})", file=sys.stderr)
+    sys.exit(1)
+
+
+def save():
+    with open(STATE + ".tmp", "w") as f:
+        json.dump(db, f, indent=1)
+    os.replace(STATE + ".tmp", STATE)
+
+
+def reply(value=None):
+    save()
+    if value is not None:
+        print(json.dumps(value))
+    sys.exit(0)
+
+
+def get(kind, n):
+    item = db[kind].get(str(n))
+    if item is None:
+        fail(404, "Not Found")
+    return item
+
+
+if method == "GET" and route == "issues":
+    reply([i for i in db["issues"].values() if i["state"] == q.get("state", "open")
+           and (not q.get("labels") or q["labels"] in [l["name"] for l in i["labels"]])
+           and (not q.get("creator") or i["user"]["login"] == q["creator"])])
+m = re.fullmatch(r"issues/(\d+)", route)
+if m and method == "GET":
+    reply(get("issues", m[1]))
+m = re.fullmatch(r"issues/(\d+)/comments", route)
+if m and method == "POST":
+    db["comments"].append({"number": int(m[1]), "body": body["body"]})
+    reply({"id": len(db["comments"])})
+if route == "labels" and method == "POST":
+    if body["name"] in db["labels"]:
+        fail(422, "Validation Failed")
+    db["labels"].append(body["name"])
+    reply({"name": body["name"]})
+m = re.fullmatch(r"issues/(\d+)/labels(?:/(.+))?", route)
+if m:
+    item = get("issues", m[1]) if m[1] in db["issues"] else get("pulls", m[1])
+    if method == "POST":
+        item["labels"] += [{"name": n} for n in body["labels"] if n not in [l["name"] for l in item["labels"]]]
+        reply(item["labels"])
+    if method == "DELETE":
+        if m[2] not in [l["name"] for l in item["labels"]]:
+            fail(404, "Label does not exist")
+        item["labels"] = [l for l in item["labels"] if l["name"] != m[2]]
+        reply(item["labels"])
+if route == "pulls" and method == "GET":
+    head = q.get("head", ":").split(":", 1)[1]
+    reply([p for p in db["pulls"].values() if p["head"]["ref"] == head])
+if route == "pulls" and method == "POST":
+    n = max([int(k) for k in list(db["issues"]) + list(db["pulls"])] + [0]) + 1
+    db["pulls"][str(n)] = {"number": n, "title": body["title"], "body": body["body"], "state": "open",
+                           "merged": False, "head": {"ref": body["head"]}, "base": {"ref": body["base"]},
+                           "labels": [], "html_url": f"https://github.com/o/r/pull/{n}"}
+    if os.environ.get("FAKE_GH_ORIGIN"):           # as GitHub does: the pull request's head ref
+        import subprocess
+        subprocess.run(["git", "--git-dir", os.environ["FAKE_GH_ORIGIN"], "update-ref", f"refs/pull/{n}/head",
+                        f"refs/heads/{body['head']}"], check=True)
+    reply(db["pulls"][str(n)])
+m = re.fullmatch(r"pulls/(\d+)", route)
+if m and method == "GET":
+    reply(get("pulls", m[1]))
+m = re.fullmatch(r"pulls/(\d+)/merge", route)
+if m and method == "PUT":
+    p = get("pulls", m[1])
+    if p["state"] != "open":
+        fail(405, "Pull Request is not mergeable")
+    p.update(state="closed", merged=True, merge_method=body["merge_method"], merged_head=body.get("sha"))
+    for n in re.findall(r"Closes #(\d+)", p["body"]):
+        if n in db["issues"]:
+            db["issues"][n]["state"] = "closed"
+    reply({"sha": "m" + (body.get("sha") or "0")[:7], "merged": True})
+m = re.fullmatch(r"commits/([0-9a-f]+)/check-runs", route)
+if m:
+    reply({"check_runs": db["checks"].get(m[1], [])})
+m = re.fullmatch(r"git/refs/heads/(.+)", route)
+if m and method == "DELETE":
+    db.setdefault("deleted_branches", []).append(m[1])
+    reply()
+fail(404, f"fake gh: no route {method} {route}")
