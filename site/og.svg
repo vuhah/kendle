@@ -2,16 +2,19 @@
 <!-- The link-preview card. Hand-written so anyone with the repo can edit it and render og.png
      again; the render command is in the desc element below, which XML lets hold the flags a
      comment cannot. The font family is a generic stack on purpose: the renderer substitutes a
-     system font, and an exotic family would change the card without anyone noticing. -->
+     system font, and an exotic family would change the card without anyone noticing - which is
+     also why the card does not try to use the two fonts the page itself ships. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <desc>Rendered with: sips -s format png --resampleHeightWidth 630 1200 site/og.svg --out site/og.png</desc>
-  <rect width="1200" height="630" fill="#0d1117"/>
-  <rect x="64" y="56" width="1072" height="518" fill="none" stroke="#5fd6a8" stroke-width="2"/>
-  <rect x="104" y="42" width="196" height="28" fill="#0d1117"/>
-  <text x="120" y="66" font-family="Menlo, monospace" font-size="26" fill="#5fd6a8">kendle.fit</text>
-  <text x="120" y="300" font-family="Menlo, monospace" font-size="148" font-weight="bold" fill="#e6edf3">kendle</text>
-  <rect x="672" y="186" width="46" height="120" fill="#5fd6a8"/>
-  <text x="120" y="394" font-family="Helvetica, Arial, sans-serif" font-size="40" fill="#9aa6b2">One terminal screen for running many Claude Code</text>
-  <text x="120" y="448" font-family="Helvetica, Arial, sans-serif" font-size="40" fill="#9aa6b2">sessions over one git repository.</text>
-  <text x="120" y="532" font-family="Menlo, monospace" font-size="30" fill="#5fd6a8">github.com/vuhah/kendle</text>
+  <rect width="1200" height="630" fill="#0c1016"/>
+  <rect x="64" y="56" width="1072" height="518" rx="18" fill="none" stroke="#2a3442" stroke-width="2"/>
+  <rect x="104" y="42" width="190" height="28" fill="#0c1016"/>
+  <text x="120" y="66" font-family="Menlo, monospace" font-size="26" fill="#4fd3a0">kendle.fit</text>
+  <text x="112" y="256" font-family="Menlo, monospace" font-size="128" font-weight="bold" fill="#e9eef5" letter-spacing="-5">kendle</text>
+  <rect x="580" y="162" width="30" height="96" fill="#4fd3a0"/>
+  <text x="112" y="348" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="bold" fill="#e9eef5">One agent is easy. Five is a different job.</text>
+  <text x="112" y="408" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#8893a3">One terminal screen for a team of agents over one git repo:</text>
+  <text x="112" y="452" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#8893a3">a worktree each, and a gate before anything is pushed.</text>
+  <circle cx="121" cy="506" r="7" fill="#4fd3a0"/>
+  <text x="140" y="516" font-family="Menlo, monospace" font-size="28" fill="#4fd3a0">github.com/vuhah/kendle</text>
 </svg>

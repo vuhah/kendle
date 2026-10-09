@@ -1,26 +1,48 @@
 /* The whole site's styling. One file, no imports, nothing fetched from anywhere else, so the page
-   opens the same from disk as it does from the web.
+   opens the same from disk as it does from the web. The two typefaces ship with the site in
+   site/fonts/ and are served from there - no font host is contacted.
 
-   The look is taken from the tool rather than invented for it. kendle is a tmux console: a framed
-   sidebar, box rules, and a short monospace label set into the top edge of each panel. So every
-   section here is a framed panel with its label notched into the rule, the way `┌ panels ─────` is
-   drawn, and monospace carries the wordmark, the labels, the role names, the diagram and code -
-   never a paragraph of prose. One type scale and one spacing step live on :root and every size in
-   the file names a step. It all has to be readable at 320 pixels wide, because half the page argues
-   for using kendle from a phone. */
+   The look is taken from the tool rather than invented for it. kendle is a tmux console, so the
+   hero carries a console drawn in plain markup: a window frame, a sidebar of sessions grouped by
+   what they are doing, the pane you picked, and the logs beside it. Monospace carries the wordmark,
+   the labels, the console and code - never a paragraph of prose. One type scale and one spacing
+   step live on :root and every size in the file names a step. It all has to be readable at 320
+   pixels wide, because half the page argues for using kendle from a phone. */
+
+/* Inter and JetBrains Mono, both SIL Open Font License 1.1 - the licences sit beside the files in
+   site/fonts/. Each is one variable file covering every weight the page uses, and the system stack
+   behind it renders the page before either arrives. */
+@font-face {
+  font-family: "Inter var";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(fonts/Inter.woff2) format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono var";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url(fonts/JetBrainsMono.woff2) format("woff2");
+}
 
 :root {
   color-scheme: light dark;
 
-  /* Type: one ratio, 1.2, from a 1rem body. */
-  --f--1: 0.833rem;
+  /* Type: one ratio, 1.2, from a 1rem body, plus two fluid display steps for the lines that have
+     to carry a whole screen. */
+  --f--1: 0.8125rem;
   --f-0: 1rem;
-  --f-1: 1.2rem;
-  --f-2: 1.44rem;
-  --f-3: 1.728rem;
-  --f-4: 2.074rem;
-  --f-5: 2.488rem;
-  --f-6: 2.986rem;
+  --f-1: 1.125rem;
+  --f-2: 1.35rem;
+  --f-3: 1.62rem;
+  --f-4: 1.95rem;
+  --f-5: 2.34rem;
+  --f-hero: clamp(2.5rem, 7.4vw, 4.5rem);
+  --f-h2: clamp(1.75rem, 3.6vw, 2.5rem);
+  --f-pull: clamp(1.75rem, 4.2vw, 3rem);
 
   /* Space: one step and the multiples of it the page uses. */
   --space: 0.5rem;
@@ -33,42 +55,101 @@
   --s8: calc(var(--space) * 8);
   --s10: calc(var(--space) * 10);
 
-  /* The gutter, so the panel labels line up with the text inside them. */
-  --pad: var(--s2);
+  --pad: var(--s3);
+  --measure: 68ch;
 
-  /* How wide a line of prose is allowed to get, wherever the column is wider than that. */
-  --measure: 66ch;
+  --r1: 6px;
+  --r2: 10px;
+  --r3: 16px;
 
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  --sans: "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "JetBrains Mono var", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
 
-  /* Light. The accent is the console's own "working" green; --rule-strong is the one that carries
-     meaning - panel frames and the diagram - so it is held above 3:1, not left at a hairline.
-     --on-accent is what sits on top of the accent when the accent is a fill. */
-  --bg: #ffffff;
-  --surface: #f5f7f9;
-  --sunken: #eceff3;
-  --text: #1f2328;
-  --muted: #50575e;
-  --link: #0a4d9e;
-  --accent: #0a6048;
+  /* Light. Warm paper, ink, and the console's own "working" green as the one accent. Every pair
+     below was measured: text 17.8:1, muted 6.5:1, accent 7.8:1, warn 5.8:1 on their backgrounds,
+     and --rule-strong, which is the only border that carries meaning, 3.2:1. */
+  --bg: #fcfcfb;
+  --bg-2: #f4f4f1;
+  --surface: #ffffff;
+  --sunken: #eeeeea;
+  --text: #141518;
+  --muted: #585d66;
+  --link: #0b5c43;
+  --accent: #0b5c43;
+  --accent-soft: #e9f4ef;
   --on-accent: #ffffff;
-  --rule: #d8dde2;
-  --rule-strong: #7b848e;
+  --warn: #8a5200;
+  --warn-soft: #fdf3e0;
+  --rule: #e2e2dd;
+  --rule-strong: #8d8f87;
+  --focus: #0b5c43;
+
+  --bar-bg: rgba(252, 252, 251, 0.92);
+  --grid-dot: rgba(20, 21, 24, 0.09);
+  --wash: radial-gradient(60rem 28rem at 72% -6rem, rgba(11, 92, 67, 0.1), transparent 70%);
+  --shadow-s: 0 1px 2px rgba(18, 22, 28, 0.05);
+  --shadow-m: 0 2px 4px rgba(18, 22, 28, 0.04), 0 12px 24px -12px rgba(18, 22, 28, 0.12);
+  --shadow-l: 0 2px 8px rgba(18, 22, 28, 0.06), 0 40px 72px -32px rgba(18, 22, 28, 0.32);
+  --glow: radial-gradient(50% 60% at 50% 0%, rgba(11, 92, 67, 0.22), transparent 70%);
+
+  /* The console keeps one palette in both schemes: it is a picture of a terminal, and a terminal
+     does not repaint itself when the page does. Measured on its own background - text 14.1:1,
+     muted 6.1:1, and every state colour at or above 4.7:1. */
+  --con-bg: #0c1016;
+  --con-bar: #151b24;
+  --con-side: #0f141c;
+  --con-sel: #17202b;
+  --con-text: #d7dee8;
+  --con-muted: #8893a3;
+  --con-rule: #222b37;
+  --st-active: #4fd3a0;
+  --st-ask: #f2b544;
+  --st-review: #6fb4ff;
+  --st-idle: #7a8696;
+  --st-bad: #ff7f72;
+  --halo-active: rgba(79, 211, 160, 0.22);
+  --halo-ask: rgba(242, 181, 68, 0.22);
+  --halo-review: rgba(111, 180, 255, 0.22);
+  --halo-idle: rgba(122, 134, 150, 0.2);
+  --halo-bad: rgba(255, 127, 114, 0.22);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117;
-    --surface: #161b22;
-    --sunken: #11161d;
-    --text: #e6edf3;
-    --muted: #9aa6b2;
-    --link: #7cb7ff;
-    --accent: #5fd6a8;
-    --on-accent: #0d1117;
-    --rule: #262d36;
-    --rule-strong: #68737f;
+    --bg: #0b0e13;
+    --bg-2: #0f131a;
+    --surface: #141922;
+    --sunken: #0d1118;
+    --text: #e9eef5;
+    --muted: #99a4b4;
+    --link: #4fd3a0;
+    --accent: #4fd3a0;
+    --accent-soft: #122520;
+    --on-accent: #06120d;
+    --warn: #f0b429;
+    --warn-soft: #2a2011;
+    --rule: #222a35;
+    --rule-strong: #6d7988;
+    --focus: #4fd3a0;
+
+    --bar-bg: rgba(11, 14, 19, 0.92);
+    --grid-dot: rgba(233, 238, 245, 0.07);
+    --wash: radial-gradient(60rem 28rem at 72% -6rem, rgba(79, 211, 160, 0.12), transparent 70%);
+    --shadow-s: 0 1px 2px rgba(0, 0, 0, 0.5);
+    --shadow-m: 0 2px 4px rgba(0, 0, 0, 0.4), 0 12px 24px -12px rgba(0, 0, 0, 0.7);
+    --shadow-l: 0 2px 8px rgba(0, 0, 0, 0.5), 0 40px 72px -32px rgba(0, 0, 0, 0.9);
+    --glow: radial-gradient(50% 60% at 50% 0%, rgba(79, 211, 160, 0.16), transparent 70%);
+
+    /* A shadow does nothing on a dark page, so in dark mode the console is lifted a step above
+       the background instead of sunk into it. Re-measured on the lighter surfaces: text 13.1:1,
+       muted 5.0:1 at worst, every state colour at or above 4.8:1. */
+    --con-bg: #121822;
+    --con-bar: #1c2430;
+    --con-side: #161d27;
+    --con-sel: #222b38;
+    --con-rule: #303a49;
+    --st-idle: #8b97a7;
+    --halo-idle: rgba(139, 151, 167, 0.2);
   }
 }
 
@@ -80,82 +161,217 @@ body {
   color: var(--text);
   font-family: var(--sans);
   font-size: 100%;
-  line-height: 1.58;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .wrap {
-  max-width: 46rem;
+  max-width: 68rem;
   margin: 0 auto;
   padding: 0 var(--pad);
 }
 
-/* The header and the footer are the surface the panels sit on, as the sidebar is behind the panes. */
-.band {
-  background: var(--surface);
-  border-bottom: 1px solid var(--rule-strong);
-}
+.wrap-narrow { max-width: 46rem; }
 
-footer.band {
-  border-bottom: 0;
-  border-top: 1px solid var(--rule-strong);
-  margin-top: var(--s8);
-}
-
-header.band .wrap { padding-top: var(--s5); padding-bottom: var(--s3); }
-footer.band .wrap { padding-top: var(--s4); padding-bottom: var(--s5); }
-
-/* --- The hero -------------------------------------------------------------------------------- */
+/* --- Type ------------------------------------------------------------------------------------ */
 
 h1 {
-  font-family: var(--mono);
-  font-size: var(--f-3);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin: 0;
-}
-
-/* The block cursor after the wordmark. It is empty generated content, so a screen reader reads the
-   name and nothing else. */
-h1::after {
-  content: "";
-  display: inline-block;
-  width: 0.55ch;
-  height: 0.85em;
-  margin-left: 0.2em;
-  vertical-align: -0.06em;
-  background: var(--accent);
-}
-
-/* The name explained, the way a dictionary glosses one, directly under the wordmark. */
-.gloss {
-  font-family: var(--mono);
-  font-size: var(--f--1);
+  font-size: var(--f-hero);
+  font-weight: 600;
+  line-height: 1.01;
+  letter-spacing: -0.038em;
   color: var(--muted);
-  margin: var(--s1) 0 0;
-  max-width: none;
+  margin: var(--s3) 0 0;
 }
 
-/* The one line that has to land in three seconds. */
-.statement {
-  font-size: var(--f-4);
+/* The turn in the sentence: the second line is the one that has to land. */
+.h1-b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+h2 {
+  font-size: var(--f-h2);
   font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.025em;
-  margin: var(--s5) 0 var(--s3);
-  max-width: 20ch;
+  margin: var(--s2) 0 var(--s3);
+  max-width: 30ch;
 }
 
-.hero .lead { max-width: 54ch; }
+h3 {
+  font-size: var(--f-2);
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  margin: var(--s6) 0 var(--s2);
+}
 
-.hero-show { margin-top: var(--s5); }
+p { margin: 0 0 var(--s2); max-width: var(--measure); }
 
-.caption {
+/* The sentence that opens a section, set large enough to be read on its own. */
+.lead {
+  font-size: var(--f-1);
+  line-height: 1.5;
   color: var(--muted);
-  font-size: var(--f--1);
-  margin: var(--s2) 0 0;
-  max-width: var(--measure);
+  max-width: 58ch;
 }
+
+/* A supporting line that is deliberately quieter than what it supports. */
+.aside {
+  color: var(--muted);
+  font-size: 0.95em;
+  border-left: 2px solid var(--rule-strong);
+  padding-left: var(--s2);
+  margin: var(--s3) 0;
+}
+
+a { color: var(--link); text-underline-offset: 0.2em; }
+
+a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: var(--r1);
+}
+
+strong { font-weight: 650; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: var(--r1);
+  padding: 0.08em 0.36em;
+  white-space: nowrap;
+}
+
+/* The small monospace label that names a section, the way the console labels a pane. */
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0;
+  max-width: none;
+}
+
+.eyebrow::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--accent);
+  border-radius: 2px;
+  flex: none;
+}
+
+/* --- The bar at the top ------------------------------------------------------------------------ */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.topbar-in {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-height: 3.75rem;
+}
+
+.mark {
+  font-family: var(--mono);
+  font-size: var(--f-1);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin: 0;
+  color: var(--text);
+  flex: none;
+}
+
+.topbar-in .mark { margin-right: auto; }
+
+/* The block cursor after the wordmark. Empty generated content, so a screen reader reads the name
+   and nothing else. */
+.mark::after {
+  content: "";
+  display: inline-block;
+  width: 0.52ch;
+  height: 0.88em;
+  margin-left: 0.14em;
+  vertical-align: -0.08em;
+  background: var(--accent);
+  border-radius: 1px;
+}
+
+.nav {
+  display: none;
+  gap: var(--s1);
+  font-family: var(--mono);
+  font-size: var(--f--1);
+}
+
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 var(--s2);
+  border-radius: var(--r1);
+  color: var(--muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav a:hover { color: var(--text); background: var(--sunken); }
+
+/* --- Links that are targets before they are links: at least 44 by 44 CSS pixels ----------------- */
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: var(--f-0);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 var(--s3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r2);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow-s);
+}
+
+.cta:hover { border-color: var(--text); }
+
+.cta-sm { font-size: var(--f--1); padding: 0 var(--s2); }
+
+/* The one link the page most wants pressed, filled rather than outlined. */
+.cta-go {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-m);
+}
+
+.cta-go:hover { filter: brightness(1.08); border-color: var(--accent); }
+
+.cta-mail { font-size: var(--f-1); min-height: 3.25rem; padding: 0 var(--s4); }
 
 .ctas {
   display: flex;
@@ -165,275 +381,468 @@ h1::after {
   max-width: none;
 }
 
-/* --- Running text ---------------------------------------------------------------------------- */
+.ctas-mid { justify-content: center; }
 
-h2 {
-  font-size: var(--f-3);
-  line-height: 1.2;
-  letter-spacing: -0.015em;
-  margin: 0 0 var(--s3);
-}
+/* --- The hero ---------------------------------------------------------------------------------- */
 
-h3 {
-  font-size: var(--f-1);
-  line-height: 1.3;
-  margin: var(--s4) 0 var(--s2);
-  padding-left: var(--s2);
-  border-left: 2px solid var(--accent);
-}
-
-p, ul { max-width: var(--measure); }
-
-p { margin: 0 0 var(--s2); }
-
-/* The sentence that opens a section, set large enough to be read on its own. */
-.lead {
-  font-size: var(--f-1);
-  line-height: 1.4;
-  margin-bottom: var(--s2);
-  max-width: 54ch;
-}
-
-/* A supporting line that is deliberately quieter than what it supports. */
-.aside {
-  color: var(--muted);
-  border-left: 2px solid var(--rule);
-  padding-left: var(--s2);
-  margin: var(--s3) 0;
-}
-
-ul {
-  margin: 0 0 var(--s2);
-  padding-left: var(--s3);
-}
-
-li { margin-bottom: var(--s1); }
-
-a { color: var(--link); }
-
-a:focus-visible {
-  outline: 2px solid var(--link);
-  outline-offset: 2px;
-}
-
-code {
-  font-family: var(--mono);
-  font-size: 0.92em;
-  background: var(--sunken);
-  padding: 0.1em 0.35em;
-}
-
-pre {
-  font-family: var(--mono);
-  font-size: 0.9em;
-}
-
-pre code {
-  background: none;
-  padding: 0;
-  font-size: 1em;
-}
-
-/* --- Panels ---------------------------------------------------------------------------------- */
-
-/* Each section is a panel with its name set into the top rule, the way the console draws one. */
-.panel {
+.hero {
   position: relative;
-  border: 1px solid var(--rule-strong);
-  padding: 0 var(--pad) var(--s4);
-  margin: var(--s6) 0;
+  isolation: isolate;
+  padding: clamp(2.5rem, 7vw, 5.5rem) 0 clamp(3rem, 7vw, 5.5rem);
+  background: var(--wash);
+  border-bottom: 1px solid var(--rule);
 }
 
-/* The pull-quote floats at wide widths, so every panel closes over it. */
-.panel::after {
+/* A faint dot grid behind the hero, faded out before it reaches the text - the graph paper a
+   console is drawn on. Decorative, so it is a pseudo-element and never in the document. */
+.hero::before {
   content: "";
-  display: block;
-  clear: both;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image: radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
+  background-size: 2rem 2rem;
+  mask-image: radial-gradient(42rem 28rem at 50% 0%, black 0%, transparent 72%);
+  -webkit-mask-image: radial-gradient(42rem 28rem at 50% 0%, black 0%, transparent 72%);
 }
 
-.panel > h2 { padding-top: var(--s4); }
+/* The trust line above the headline: three facts a reader can check in a minute. */
+.eyebrow-hero {
+  display: inline-flex;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: var(--s1) var(--s2);
+  box-shadow: var(--shadow-s);
+}
 
-.panel > h2 .tag {
-  position: absolute;
-  top: 0;
-  left: var(--pad);
-  transform: translateY(-50%);
-  background: var(--bg);
-  padding: 0 var(--s1);
-  font-family: var(--mono);
+.eyebrow-hero::before { background: var(--st-active); border-radius: 50%; }
+
+.hero-lead {
+  margin-top: var(--s3);
+  font-size: var(--f-1);
+  max-width: 52ch;
+}
+
+.caption {
+  color: var(--muted);
   font-size: var(--f--1);
-  font-weight: 400;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
+  margin: var(--s2) 0 0;
+  max-width: 62ch;
+}
+
+/* --- The console, drawn in markup --------------------------------------------------------------- */
+
+.console-frame {
+  position: relative;
+  margin-top: clamp(2rem, 5vw, 3.5rem);
+}
+
+/* The light the window throws on the page behind it. */
+.console-frame::before {
+  content: "";
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: -1.5rem;
+  bottom: -2.5rem;
+  z-index: -1;
+  background: var(--glow);
+}
+
+.console {
+  border: 1px solid var(--con-rule);
+  border-radius: var(--r3);
+  background: var(--con-bg);
+  box-shadow: var(--shadow-l);
+  overflow: hidden;
+  font-family: var(--mono);
+  font-size: 0.8125em;
+  line-height: 1.75;
+  color: var(--con-text);
+}
+
+.con-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s2);
+  background: var(--con-bar);
+  border-bottom: 1px solid var(--con-rule);
+}
+
+.con-dots { display: flex; gap: 6px; flex: none; }
+
+.con-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--con-rule);
+}
+
+.con-title { color: var(--con-muted); letter-spacing: 0.02em; }
+
+.con-chip {
+  margin-left: auto;
+  color: var(--st-active);
+  background: var(--halo-active);
+  border-radius: 999px;
+  padding: 0 var(--s1);
+  font-size: 0.92em;
   white-space: nowrap;
 }
 
-/* The last panel is the one that asks for a reply, so it is the one that is lit. */
-.invite {
-  background: var(--surface);
-  border-color: var(--accent);
+.con-body { display: grid; grid-template-columns: minmax(0, 1fr); }
+
+.con-side {
+  padding: var(--s2) 0;
+  background: var(--con-side);
+  border-bottom: 1px solid var(--con-rule);
 }
 
-.invite > h2 .tag { background: var(--surface); }
+/* The label over a group of sessions, and the count beside it - the sidebar's whole job. */
+.con-group {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin: var(--s2) 0 2px;
+  padding: 0 var(--s2);
+  max-width: none;
+  color: var(--con-muted);
+  font-size: 0.86em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
 
-.fine { color: var(--muted); margin: var(--s2) 0 0; }
+.con-group:first-child { margin-top: 0; }
 
-/* --- The console pieces ---------------------------------------------------------------------- */
+.con-g-n {
+  margin-left: auto;
+  background: var(--con-sel);
+  border-radius: 999px;
+  padding: 0 0.5em;
+  letter-spacing: 0;
+}
 
-/* The panel diagram is drawn with box characters: it cannot wrap, so it scrolls inside its own box
-   rather than pushing the page sideways. This is the only overflow rule in the file. The box is
-   `max-content` wide so it fits the drawing rather than the column, and `100%` keeps it inside a
-   phone, where it is the one thing on the page that scrolls. */
-pre.diagram {
-  overflow-x: auto;
-  background: var(--bg);
-  border: 1px solid var(--rule-strong);
-  padding: var(--s2);
+.con-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
   margin: 0;
-  width: max-content;
-  max-width: 100%;
-  font-size: 0.75em;
-  line-height: 1.4;
+  padding: 1px var(--s2);
+  max-width: none;
+  color: var(--con-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-left: 2px solid transparent;
 }
 
+/* The session you have selected: the whole point of the sidebar is that you can see which. */
+.con-row.is-on {
+  color: var(--con-text);
+  background: var(--con-sel);
+  border-left-color: var(--st-active);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.dot.ask { background: var(--st-ask); box-shadow: 0 0 0 3px var(--halo-ask); }
+.dot.review { background: var(--st-review); box-shadow: 0 0 0 3px var(--halo-review); }
+.dot.active { background: var(--st-active); box-shadow: 0 0 0 3px var(--halo-active); }
+.dot.idle { background: var(--st-idle); box-shadow: 0 0 0 3px var(--halo-idle); }
+.dot.bad { background: var(--st-bad); box-shadow: 0 0 0 3px var(--halo-bad); }
+
+.con-main { padding: var(--s2); min-width: 0; }
+
+.con-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s2);
+  padding-bottom: var(--s1);
+  max-width: none;
+  border-bottom: 1px solid var(--con-rule);
+}
+
+.con-feat { color: var(--con-text); font-weight: 600; }
+
+.con-branch {
+  color: var(--con-muted);
+  border: 1px solid var(--con-rule);
+  border-radius: var(--r1);
+  padding: 0 0.5em;
+  font-size: 0.9em;
+}
+
+.con-line {
+  display: flex;
+  gap: var(--s1);
+  margin: 0;
+  max-width: none;
+  color: var(--con-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.con-line .who {
+  color: var(--con-muted);
+  flex: none;
+  width: 4.75rem;
+}
+
+.con-line .who.ok { color: var(--st-active); }
+
+.con-wait { color: var(--st-ask); margin-top: var(--s1); }
+
+.caret {
+  display: inline-block;
+  width: 0.55ch;
+  height: 1em;
+  margin-left: 0.3em;
+  vertical-align: -0.14em;
+  background: var(--st-ask);
+}
+
+.con-logs {
+  display: none;
+  padding: var(--s2) 0;
+  background: var(--con-side);
+  border-left: 1px solid var(--con-rule);
+}
+
+.con-note {
+  margin: var(--s1) 0 0;
+  padding: 0 var(--s2);
+  max-width: none;
+  color: var(--st-bad);
+  font-size: 0.9em;
+}
+
+/* --- Sections ------------------------------------------------------------------------------------ */
+
+.slab {
+  padding: clamp(3rem, 7vw, 5.5rem) 0;
+  scroll-margin-top: 3.75rem;
+}
+
+/* Every other section sits on the quieter surface, so the page has a pulse rather than one field
+   of white to scroll down. */
+.slab-alt {
+  background: var(--bg-2);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Install is shown the way you will actually meet it: in a terminal. */
+.slab-dark {
+  background: var(--con-bg);
+  color: var(--con-text);
+}
+
+.slab-dark h2 { color: var(--con-text); }
+.slab-dark .lead { color: var(--con-muted); }
+.slab-dark .eyebrow { color: var(--st-active); }
+.slab-dark .eyebrow::before { background: var(--st-active); }
+.slab-dark a { color: var(--st-active); }
+.slab-dark a:focus-visible { outline-color: var(--st-active); }
+
+.slab-dark code {
+  background: var(--con-sel);
+  border-color: var(--con-rule);
+  color: var(--con-text);
+}
+
+.slab-dark .cta {
+  background: var(--st-active);
+  border-color: var(--st-active);
+  color: var(--con-bg);
+}
+
+/* The install snippet wraps rather than cutting, and is the one box on the page allowed to slide
+   sideways if a line simply will not break. */
 pre.commands {
-  background: var(--sunken);
-  border: 1px solid var(--rule);
-  border-left: 2px solid var(--accent);
-  padding: var(--s2);
-  margin: var(--s3) 0;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.875em;
+  line-height: 1.8;
+  background: var(--con-side);
+  border: 1px solid var(--con-rule);
+  border-left: 3px solid var(--st-active);
+  border-radius: var(--r2);
+  padding: var(--s3);
+  margin: var(--s4) 0 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  color: var(--con-text);
 }
 
-.notice {
-  background: var(--surface);
-  border: 1px solid var(--rule);
-  border-left: 2px solid var(--accent);
-  padding: var(--s2) var(--s3);
-  margin: var(--s3) 0;
+pre.commands code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 1em;
+  white-space: inherit;
 }
 
-.invite .notice { background: var(--bg); }
+/* --- Cards --------------------------------------------------------------------------------------- */
 
-/* The one sentence of a section worth stopping on, lifted out of the prose beside it. */
-.pull {
-  font-size: var(--f-2);
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  border-left: 3px solid var(--accent);
-  padding-left: var(--s3);
-  margin: var(--s4) 0;
-  max-width: 28ch;
-}
-
-/* --- Cards ----------------------------------------------------------------------------------- */
-
-/* Four or six short facts read as a row of panels, not as a list to wade through. */
 .cards {
   list-style: none;
   display: grid;
   gap: var(--s2);
   padding-left: 0;
-  margin: var(--s3) 0;
+  margin: var(--s4) 0 0;
   max-width: none;
 }
 
 .cards li {
   margin: 0;
-  max-width: none;
   background: var(--surface);
   border: 1px solid var(--rule);
-  border-top: 2px solid var(--accent);
-  padding: var(--s2) var(--s3);
+  border-radius: var(--r2);
+  padding: var(--s3);
+  font-size: 0.97em;
+  color: var(--muted);
+  box-shadow: var(--shadow-s);
 }
+
+.cards li:hover { box-shadow: var(--shadow-m); border-color: var(--rule-strong); }
 
 .cards li strong {
   display: block;
+  color: var(--text);
   font-family: var(--mono);
+  font-size: 0.95em;
   font-weight: 600;
-  color: var(--accent);
+  letter-spacing: -0.01em;
   margin-bottom: var(--s1);
 }
 
-/* The open questions are questions, and the marker says so. */
+/* --- The open questions ---------------------------------------------------------------------------- */
+
 .questions {
   list-style: none;
   display: grid;
   gap: var(--s2);
   padding-left: 0;
-  margin: var(--s3) 0;
+  margin: var(--s4) 0 0;
   max-width: none;
 }
 
 .questions li {
   position: relative;
   margin: 0;
-  padding-left: 3ch;
-  border-left: 1px solid var(--rule);
-  padding-top: var(--s1);
-  padding-bottom: var(--s1);
+  padding: var(--s2) var(--s3) var(--s2) var(--s6);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r2);
+  color: var(--text);
 }
 
 .questions li::before {
   content: "?";
   position: absolute;
-  left: var(--s1);
+  left: var(--s3);
   font-family: var(--mono);
+  font-weight: 600;
   color: var(--accent);
 }
 
-/* The rung marker on each future, so the five read as one ladder. */
+/* --- The ladder ------------------------------------------------------------------------------------ */
+
+.notice {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
+  border-radius: var(--r2);
+  padding: var(--s3);
+  margin: var(--s4) 0;
+  color: var(--text);
+  font-size: 0.97em;
+  max-width: var(--measure);
+}
+
+.notice strong { color: var(--warn); }
+
+.ladder {
+  list-style: none;
+  padding: 0;
+  margin: var(--s6) 0 0;
+  max-width: none;
+}
+
+/* One rail with the five rungs on it, so they read as one argument rather than five wishes. */
+.ladder li {
+  position: relative;
+  margin: 0;
+  padding: 0 0 var(--s6) var(--s5);
+  border-left: 2px solid var(--rule);
+}
+
+.ladder li:last-child { border-left-color: transparent; padding-bottom: 0; }
+
+.ladder h3 { margin: 0 0 var(--s1); }
+
+.ladder p { color: var(--muted); margin-bottom: 0; }
+
 .rung {
-  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 2px solid var(--accent);
+  color: var(--accent);
   font-family: var(--mono);
   font-size: var(--f--1);
-  font-weight: 400;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--accent);
+  font-weight: 600;
 }
 
-/* --- The team diagram ------------------------------------------------------------------------ */
+/* --- The team diagram -------------------------------------------------------------------------------- */
 
-/* The team drawn as the console frames it. The sizes inside the SVG are user units on a 300-wide
-   viewBox, so capping the measure here is what keeps its smallest text above 12 pixels and stops
-   it swelling on a wide screen: it renders 288 pixels wide beside its prose and on a phone alike,
-   which puts the smallest label at 14.4 pixels. */
+.split-say p { color: var(--muted); }
+
 .team {
   margin: var(--s4) 0 0;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r2);
+  padding: var(--s3);
+  box-shadow: var(--shadow-s);
 }
 
+/* The sizes inside the SVG are user units on a 300-wide viewBox, so capping the measure here is
+   what keeps its smallest text above 12 pixels and stops it swelling on a wide screen. */
 .team svg {
   display: block;
   width: 100%;
-  max-width: 22rem;
+  max-width: 20rem;
   height: auto;
   margin: 0 auto;
 }
 
-.team .box {
-  fill: var(--surface);
-  stroke: var(--rule-strong);
-}
+.team rect { rx: 4px; }
 
-.team .mgr {
-  fill: var(--sunken);
-  stroke: var(--accent);
-  stroke-width: 1.5;
-}
+.team .box { fill: var(--bg-2); stroke: var(--rule-strong); }
 
-.team .you-box {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.5;
-}
+.team .mgr { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
 
-.team .wire {
-  fill: none;
-  stroke: var(--rule-strong);
-}
+.team .you-box { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+
+.team .wire { fill: none; stroke: var(--rule-strong); }
 
 .team .head { fill: var(--rule-strong); }
 
@@ -446,10 +855,7 @@ pre.commands {
 
 .team .you-head { fill: var(--accent); }
 
-.team text {
-  font-family: var(--mono);
-  fill: var(--text);
-}
+.team text { font-family: var(--mono); fill: var(--text); }
 
 .team .owns { fill: var(--muted); }
 
@@ -458,133 +864,144 @@ pre.commands {
 .team figcaption {
   color: var(--muted);
   font-size: var(--f--1);
-  max-width: var(--measure);
   margin-top: var(--s2);
 }
 
-/* --- Links that are targets before they are links: at least 44 by 44 CSS pixels. -------------- */
+/* --- Why now, and the invitation ----------------------------------------------------------------------- */
 
-.nav {
+/* The one sentence of the page worth stopping on, set as the section's own heading. Why now is
+   the page's centred moment: the claim in the middle, the argument for it left-aligned under it. */
+.pull {
+  font-size: var(--f-pull);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  max-width: 24ch;
+  margin: var(--s3) auto var(--s5);
+  text-align: center;
+}
+
+#why-now .eyebrow { justify-content: center; }
+
+#why-now .lead,
+#why-now p { margin-left: auto; margin-right: auto; }
+
+/* The last panel is the one that asks for a reply, so it is the one that is lit. */
+.invite {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--r3);
+  padding: clamp(2rem, 5vw, 3.5rem);
+  text-align: center;
+  box-shadow: var(--shadow-m);
+}
+
+.invite .eyebrow { justify-content: center; }
+
+.invite h2 { max-width: none; margin-left: auto; margin-right: auto; }
+
+.invite .lead { margin: 0 auto; }
+
+/* --- The foot ---------------------------------------------------------------------------------------- */
+
+.foot {
+  background: var(--bg-2);
+  border-top: 1px solid var(--rule);
+  padding: var(--s6) 0;
+}
+
+.foot-in {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--s3);
-  margin-top: var(--s5);
-  padding-top: var(--s1);
-  border-top: 1px solid var(--rule-strong);
+  gap: var(--s3);
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.gloss {
   font-family: var(--mono);
   font-size: var(--f--1);
+  color: var(--muted);
+  margin: var(--s1) 0 0;
 }
 
-.nav a {
-  display: inline-block;
-  min-height: 2.75rem;
-  min-width: 2.75rem;
-  padding: var(--s2) 0;
-  text-align: center;
-  text-underline-offset: 0.3em;
+.fine {
+  color: var(--muted);
+  font-size: var(--f--1);
+  margin: 0;
+  text-align: right;
 }
 
-.cta {
-  display: inline-block;
-  font-family: var(--mono);
-  font-size: var(--f-0);
-  min-height: 2.75rem;
-  min-width: 2.75rem;
-  padding: var(--s2) var(--s3);
-  border: 1px solid var(--link);
-  text-decoration: none;
-}
+.mark-sm { font-size: var(--f-0); }
 
-.cta:hover {
-  background: var(--sunken);
-  text-decoration: underline;
-}
+/* --- Wider than a phone -------------------------------------------------------------------------------- */
 
-/* The one link the page most wants pressed, filled rather than outlined. */
-.cta-go {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-  font-weight: 600;
-}
-
-.cta-go:hover {
-  background: var(--bg);
-  color: var(--accent);
-}
-
-.cta-mail { font-size: var(--f-1); }
-
-/* --- Wider than a phone ----------------------------------------------------------------------- */
-
-@media (min-width: 40rem) {
+@media (min-width: 30rem) {
   :root { --pad: var(--s4); }
 
-  h1 { font-size: var(--f-4); }
-
-  .statement { font-size: var(--f-5); }
-
-  pre.diagram { font-size: 0.85em; }
+  .cards { gap: var(--s3); }
 }
 
-/* Two columns, where two columns say it better. Below this width everything is one column, which
-   is what keeps 320 pixels honest. */
-@media (min-width: 46rem) {
+/* The console gets its sidebar back beside the pane as soon as there is room for both. */
+@media (min-width: 34rem) {
+  .con-body { grid-template-columns: 10.5rem minmax(0, 1fr); }
+
+  .con-side { border-bottom: 0; border-right: 1px solid var(--con-rule); }
+
+  .console { font-size: 0.875em; }
+}
+
+@media (min-width: 48rem) {
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .questions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-  .split { display: grid; grid-template-columns: minmax(0, 1fr) 18rem; gap: var(--s5); }
-
-  .split p { max-width: none; }
+  .split { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: var(--s5); align-items: start; }
 
   .team { margin-top: 0; }
+
+  .nav { display: flex; }
+
+  .ladder li { padding-left: var(--s6); }
+
+  .rung { width: 2.5rem; height: 2.5rem; font-size: var(--f-0); }
 }
 
 @media (min-width: 64rem) {
-  .wrap { max-width: 58rem; }
-
   .cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-  h2 { font-size: var(--f-4); }
+  .con-body { grid-template-columns: 12rem minmax(0, 1fr) 9.5rem; }
 
-  .statement { font-size: var(--f-6); max-width: 16ch; }
+  .con-logs { display: block; }
 
-  .pull {
-    float: right;
-    width: 18rem;
-    margin: var(--s1) 0 var(--s3) var(--s6);
-    font-size: var(--f-3);
-  }
+  h3 { font-size: var(--f-3); }
 
-  /* The ladder: each rung's marker hangs in its own gutter beside the prose it belongs to. */
-  #vision h3 {
-    display: grid;
-    grid-template-columns: 8rem minmax(0, 1fr);
-    column-gap: var(--s3);
-    align-items: baseline;
-    border-left: 0;
-    padding-left: 0;
-  }
-
-  #vision .rung {
-    text-align: right;
-    padding-right: var(--s2);
-    border-right: 2px solid var(--accent);
-  }
-
-  #vision h3 + p { padding-left: calc(8rem + var(--s3)); }
+  .hero-lead { font-size: var(--f-2); }
 }
 
-/* The one moving thing on the page: the cursor after the wordmark, in the header, where nobody is
-   reading a sentence. Opacity only, and nothing moves at all for a reader who asked it not to. */
-@media (prefers-reduced-motion: no-preference) {
-  h1::after { animation: blink 1.5s step-end infinite; }
+/* --- Motion, for readers who have not asked for stillness ------------------------------------------------ */
 
-  .cta { transition: background 0.15s linear, color 0.15s linear; }
+/* Two things move, both of them cursors in the header and the console, where nobody is reading a
+   sentence; the rest is the hover feedback a pressable thing owes you. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+
+  .mark::after { animation: blink 1.4s step-end infinite; }
+
+  .caret { animation: blink 1.1s step-end infinite; }
+
+  .con-row.is-on .dot { animation: pulse 2.4s ease-in-out infinite; }
+
+  .cta, .nav a, .cards li, .team { transition: background 0.16s linear, color 0.16s linear, border-color 0.16s linear, box-shadow 0.22s ease, transform 0.22s ease, filter 0.16s linear; }
+
+  .cards li:hover { transform: translateY(-2px); }
 
   @keyframes blink {
-    0%, 65% { opacity: 1; }
-    70%, 100% { opacity: 0; }
+    0%, 62% { opacity: 1; }
+    67%, 100% { opacity: 0; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 3px var(--halo-active); }
+    50% { box-shadow: 0 0 0 6px var(--halo-active); }
   }
 }
