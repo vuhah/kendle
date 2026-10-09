@@ -61,6 +61,7 @@
   --r1: 6px;
   --r2: 10px;
   --r3: 16px;
+  --r4: 30px;
 
   --sans: "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --mono: "JetBrains Mono var", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
@@ -452,7 +453,8 @@ code {
   background: var(--glow);
 }
 
-.console {
+.console,
+.shot {
   border: 1px solid var(--con-rule);
   border-radius: var(--r3);
   background: var(--con-bg);
@@ -791,7 +793,6 @@ pre.commands code {
 
 .ladder h3 { margin: 0 0 var(--s1); }
 
-.ladder p { color: var(--muted); margin-bottom: 0; }
 
 .rung {
   position: absolute;
@@ -809,6 +810,426 @@ pre.commands code {
   font-family: var(--mono);
   font-size: var(--f--1);
   font-weight: 600;
+}
+
+/* --- The climb: six rungs as one picture --------------------------------------------------- */
+
+/* The whole argument of the vision section in one graphic. On a phone it is a numbered strip,
+   because a staircase needs width before it reads as one; from 48rem up the treads rise. */
+.climb-fig { margin: var(--s5) 0 0; }
+
+.climb {
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+}
+
+.climb li {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 2px 0;
+}
+
+.tread {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 2.5rem;
+  padding: 0.2em 0.6em;
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  border-radius: var(--r1);
+}
+
+/* The one rung that exists is the only solid block on the graphic. */
+.climb .is-now .tread {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-style: solid;
+}
+
+.climb-name {
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  color: var(--muted);
+}
+
+.climb .is-now .climb-name { color: var(--text); }
+
+.climb-fig figcaption,
+.mock figcaption {
+  color: var(--muted);
+  font-size: var(--f--1);
+  margin-top: var(--s2);
+  max-width: var(--measure);
+}
+
+/* --- The concept shots ---------------------------------------------------------------------- */
+
+/* Each unbuilt future is drawn the way the hero console is drawn - markup and CSS, no image - and
+   each one carries the word CONCEPT on its face. The badge is a sibling of the picture, never a
+   child of it: a role="img" hides its own contents, so a badge inside would be the one thing on
+   the page a screen reader could not hear. Its label repeats the word for the same reason. */
+.mock {
+  position: relative;
+  margin: var(--s5) 0 0;
+  padding-top: var(--s5);
+}
+
+.concept {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  max-width: none;
+  padding: 0.3em 0.9em;
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--on-accent);
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: var(--shadow-m);
+}
+
+.mock-phone .concept { right: auto; left: 50%; transform: translateX(-50%); }
+
+.concept-x {
+  padding-left: var(--s2);
+  border-left: 1px solid var(--on-accent);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.vrow { display: grid; gap: var(--s4); }
+
+/* A conversation and a phone are narrow things; at desk width they are centred under the prose
+   rather than stretched to the column. */
+.mock-chat { max-width: 42rem; }
+
+.mock-phone { max-width: 26rem; }
+
+.mock-chat,
+.mock-phone { margin-left: auto; margin-right: auto; }
+
+.mock-chat figcaption,
+.mock-phone figcaption { text-align: center; }
+
+.vsay p { color: var(--muted); }
+
+.vsay p:last-child { margin-bottom: 0; }
+
+/* --- The hub ---------------------------------------------------------------------------------- */
+
+.hub-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s1) var(--s2);
+  background: var(--con-bar);
+  border-bottom: 1px solid var(--con-rule);
+}
+
+.hub-mark { flex: none; font-weight: 700; color: var(--con-text); }
+
+.hub-tabs { display: none; gap: var(--s1); }
+
+.hub-tab { padding: 0 0.6em; border-radius: var(--r1); color: var(--con-muted); }
+
+.hub-tab.is-on { color: var(--con-text); background: var(--con-sel); }
+
+.hub-chip {
+  margin-left: auto;
+  flex: none;
+  padding: 0 var(--s1);
+  border-radius: 999px;
+  font-size: 0.92em;
+  white-space: nowrap;
+  color: var(--st-ask);
+  background: var(--halo-ask);
+}
+
+.hub-body { display: grid; grid-template-columns: minmax(0, 1fr); }
+
+.hub-rail {
+  display: none;
+  padding: var(--s2) 0;
+  background: var(--con-side);
+  border-right: 1px solid var(--con-rule);
+}
+
+.hub-rail-h {
+  margin: var(--s2) 0 2px;
+  padding: 0 var(--s2);
+  max-width: none;
+  font-size: 0.86em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--con-muted);
+}
+
+.hub-rail-h:first-child { margin-top: 0; }
+
+.hub-repo {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin: 0;
+  padding: 1px var(--s2);
+  max-width: none;
+  white-space: nowrap;
+  color: var(--con-muted);
+  border-left: 2px solid transparent;
+}
+
+.hub-repo.is-on {
+  color: var(--con-text);
+  background: var(--con-sel);
+  border-left-color: var(--st-ask);
+}
+
+.hub-n {
+  margin-left: auto;
+  padding: 0 0.5em;
+  border-radius: 999px;
+  background: var(--con-sel);
+}
+
+.hub-board { display: grid; gap: var(--s2); padding: var(--s2); min-width: 0; }
+
+/* Narrow screens get the column that matters - the work waiting on a person - and the shot's
+   label still describes all three. */
+.hub-col { min-width: 0; }
+
+.hub-col:nth-child(2), .hub-col:nth-child(3) { display: none; }
+
+.hub-col-h {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  margin: 0 0 var(--s1);
+  max-width: none;
+  font-size: 0.86em;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--con-muted);
+}
+
+.fcard {
+  margin-bottom: var(--s1);
+  padding: var(--s1) var(--s2);
+  background: var(--con-side);
+  border: 1px solid var(--con-rule);
+  border-left: 2px solid var(--con-rule);
+  border-radius: var(--r1);
+}
+
+.fcard:last-child { margin-bottom: 0; }
+
+/* The one card a person has to answer: lifted off the column, and its question set in the
+   foreground colour rather than the muted one, because the question is the whole card. */
+.fcard.is-ask { background: var(--con-sel); border-left-color: var(--st-ask); }
+
+.fcard.is-ask .fcard-q { color: var(--con-text); }
+
+.fcard-go { border-left-color: var(--st-active); }
+
+.fcard p { margin: 2px 0 0; max-width: none; }
+
+.fcard p:first-child { margin-top: 0; }
+
+.fcard-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1);
+  font-size: 0.9em;
+  color: var(--con-muted);
+}
+
+.fcard-repo { padding: 0 0.45em; border: 1px solid var(--con-rule); border-radius: var(--r1); }
+
+.fcard-age { margin-left: auto; }
+
+.fcard-name { color: var(--con-text); font-weight: 600; line-height: 1.4; }
+
+.fcard-q { font-size: 0.95em; color: var(--con-muted); line-height: 1.45; }
+
+.fcard-gate { font-size: 0.95em; color: var(--st-active); }
+
+/* The six roles as six dots: done, working, not started - the progress bar this tool actually has. */
+.fcard-roles { display: flex; align-items: center; gap: 3px; }
+
+.rdot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--con-rule);
+}
+
+.rdot.on { background: var(--st-active); }
+
+.rdot.now { background: var(--st-ask); box-shadow: 0 0 0 3px var(--halo-ask); }
+
+.fcard-who { margin-left: var(--s2); font-size: 0.9em; color: var(--con-muted); }
+
+/* --- The assistant ------------------------------------------------------------------------------ */
+
+.chat { display: grid; gap: var(--s2); padding: var(--s2); }
+
+.msg { margin: 0; max-width: none; }
+
+.msg p { margin: var(--s1) 0 0; max-width: none; }
+
+.msg p:first-child { margin-top: 0; }
+
+.msg.you {
+  justify-self: end;
+  max-width: 88%;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r2) var(--r2) 2px var(--r2);
+  color: var(--con-bg);
+  background: var(--st-active);
+}
+
+.msg.bot {
+  justify-self: start;
+  max-width: 94%;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r2) var(--r2) var(--r2) 2px;
+  color: var(--con-text);
+  background: var(--con-side);
+  border: 1px solid var(--con-rule);
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--s1); max-width: none; }
+
+.chip {
+  padding: 0 0.7em;
+  border: 1px solid var(--con-rule);
+  border-radius: 999px;
+  white-space: nowrap;
+  color: var(--con-text);
+  background: var(--con-sel);
+}
+
+.chip-go {
+  font-weight: 600;
+  color: var(--con-bg);
+  background: var(--st-active);
+  border-color: var(--st-active);
+}
+
+.chat-run {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: 0.92em;
+  color: var(--con-muted);
+}
+
+.chat-ask {
+  margin: 0;
+  max-width: none;
+  padding: var(--s1) var(--s2);
+  font-size: 0.92em;
+  color: var(--con-muted);
+  background: var(--con-side);
+  border: 1px solid var(--con-rule);
+  border-radius: var(--r2);
+}
+
+/* --- The phone ------------------------------------------------------------------------------------ */
+
+.shot-phone {
+  max-width: 17.5rem;
+  font-size: 0.8125em;
+  margin: 0 auto;
+  padding: var(--s2) var(--s1) var(--s1);
+  border: 7px solid var(--con-bar);
+  border-radius: var(--r4);
+}
+
+.ph-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 var(--s1);
+  max-width: none;
+  padding: 0 var(--s2);
+  font-size: 0.85em;
+  color: var(--con-muted);
+}
+
+.ph-bars { display: flex; align-items: flex-end; gap: 2px; }
+
+.ph-bars i { width: 3px; border-radius: 1px; background: var(--con-muted); }
+
+.ph-bars i:nth-child(1) { height: 4px; }
+.ph-bars i:nth-child(2) { height: 7px; }
+.ph-bars i:nth-child(3) { height: 10px; }
+
+.ph-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0 0 var(--s1);
+  max-width: none;
+  padding: var(--s1) var(--s2);
+  border-radius: var(--r2);
+  background: var(--con-bar);
+}
+
+.ph-mark { font-weight: 700; color: var(--con-text); }
+
+.ph-chip {
+  margin-left: auto;
+  padding: 0 var(--s1);
+  border-radius: 999px;
+  font-size: 0.92em;
+  color: var(--st-ask);
+  background: var(--halo-ask);
+}
+
+.ph-card {
+  margin-top: var(--s1);
+  padding: var(--s2);
+  background: var(--con-side);
+  border: 1px solid var(--con-rule);
+  border-radius: var(--r2);
+}
+
+.ph-card p { margin: var(--s1) 0 0; max-width: none; }
+
+.ph-card p:first-child { margin-top: 0; }
+
+.ph-q { color: var(--con-text); line-height: 1.45; }
+
+.ph-gate { font-size: 0.95em; color: var(--st-active); }
+
+.ph-reply {
+  padding-top: var(--s1);
+  font-size: 0.92em;
+  color: var(--con-muted);
+  border-top: 1px dashed var(--con-rule);
 }
 
 /* --- The team diagram -------------------------------------------------------------------------------- */
@@ -945,9 +1366,14 @@ pre.commands code {
 @media (min-width: 34rem) {
   .con-body { grid-template-columns: 10.5rem minmax(0, 1fr); }
 
+  .hub-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .hub-col:nth-child(2) { display: block; }
+
   .con-side { border-bottom: 0; border-right: 1px solid var(--con-rule); }
 
-  .console { font-size: 0.875em; }
+  .console,
+  .shot { font-size: 0.875em; }
 }
 
 @media (min-width: 48rem) {
@@ -964,6 +1390,42 @@ pre.commands code {
   .ladder li { padding-left: var(--s6); }
 
   .rung { width: 2.5rem; height: 2.5rem; font-size: var(--f-0); }
+
+  .hub-tabs { display: flex; }
+
+  /* There is room for the staircase: the treads rise off one ground line, the only solid one
+     already built, and the label under each is what the rung is called further down the page. */
+  .climb { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+
+  .climb li {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-end;
+    gap: 0;
+    padding: 0;
+  }
+
+  .tread {
+    min-width: 0;
+    padding: var(--s1);
+    border-bottom: 0;
+    border-radius: var(--r2) var(--r2) 0 0;
+  }
+
+  .climb li:nth-child(1) .tread { height: 2.75rem; }
+  .climb li:nth-child(2) .tread { height: 3.75rem; }
+  .climb li:nth-child(3) .tread { height: 4.75rem; }
+  .climb li:nth-child(4) .tread { height: 5.75rem; }
+  .climb li:nth-child(5) .tread { height: 6.75rem; }
+  .climb li:nth-child(6) .tread { height: 7.75rem; }
+
+  .climb-name {
+    min-height: 3.25rem;
+    padding: var(--s2) var(--s1) 0;
+    line-height: 1.3;
+    text-align: center;
+    border-top: 2px solid var(--rule-strong);
+  }
 }
 
 @media (min-width: 64rem) {
@@ -976,6 +1438,15 @@ pre.commands code {
   h3 { font-size: var(--f-3); }
 
   .hero-lead { font-size: var(--f-2); }
+
+  .hub-body { grid-template-columns: 9.5rem minmax(0, 1fr); }
+
+  .hub-rail { display: block; }
+
+  .hub-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .hub-col:nth-child(3) { display: block; }
+
 }
 
 /* --- Motion, for readers who have not asked for stillness ------------------------------------------------ */

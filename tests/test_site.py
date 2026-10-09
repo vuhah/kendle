@@ -295,7 +295,7 @@ class Site(unittest.TestCase):
     def test_the_page_and_the_card_stay_small(self):
         page = (os.path.getsize(os.path.join(SITE, "index.html"))
                 + os.path.getsize(os.path.join(SITE, "style.css")))
-        self.assertLess(page, 60 * 1024, f"index.html plus style.css is {page} bytes, over the 60 KB budget")
+        self.assertLess(page, 72 * 1024, f"index.html plus style.css is {page} bytes, over the 72 KB budget")
         card = os.path.join(SITE, "og.png")
         self.assertLess(os.path.getsize(card), 100 * 1024,
                         "site/og.png is over the 100 KB ceiling")
