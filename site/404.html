@@ -7,59 +7,107 @@
 <!-- Pages serves this page for any unknown path, including deep ones, where a relative stylesheet
      would resolve against the wrong folder. So the few rules it needs live here, with the tokens
      copied by hand from style.css - if those change, change these in the same commit or this page
-     starts looking like a different site. -->
+     starts looking like a different site. The two typefaces are the ones style.css ships, named
+     here with root-absolute paths because this page is served for any depth of path. -->
 <style>
+@font-face {
+  font-family: "Inter var";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url(/fonts/Inter.woff2) format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono var";
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url(/fonts/JetBrainsMono.woff2) format("woff2");
+}
 :root {
   color-scheme: light dark;
-  --bg: #ffffff;
-  --text: #1f2328;
-  --link: #0a4d9e;
-  --rule-strong: #7b848e;
+  --bg: #fcfcfb;
+  --surface: #ffffff;
+  --text: #141518;
+  --muted: #585d66;
+  --accent: #0b5c43;
+  --on-accent: #ffffff;
+  --rule: #e2e2dd;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117;
-    --text: #e6edf3;
-    --link: #7cb7ff;
-    --rule-strong: #68737f;
+    --bg: #0b0e13;
+    --surface: #141922;
+    --text: #e9eef5;
+    --muted: #99a4b4;
+    --accent: #4fd3a0;
+    --on-accent: #06120d;
+    --rule: #222a35;
   }
 }
 body {
   margin: 0;
-  padding: 3rem 1rem;
+  padding: 4rem 1.5rem;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 100%;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 main {
-  max-width: 36rem;
+  max-width: 34rem;
   margin: 0 auto;
-  border: 1px solid var(--rule-strong);
-  padding: 2rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  padding: 2.5rem 2rem;
+  box-shadow: 0 2px 4px rgba(18, 22, 28, 0.04), 0 12px 24px -12px rgba(18, 22, 28, 0.12);
+}
+.mark {
+  font-family: "JetBrains Mono var", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  margin: 0 0 1.5rem;
+}
+.mark::after {
+  content: "";
+  display: inline-block;
+  width: 0.52ch;
+  height: 0.88em;
+  margin-left: 0.14em;
+  vertical-align: -0.08em;
+  background: var(--accent);
+  border-radius: 1px;
 }
 h1 {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
   font-size: 2rem;
-  margin: 0 0 1rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin: 0 0 0.75rem;
 }
-p { max-width: 68ch; }
-a { color: var(--link); }
+p { color: var(--muted); max-width: 48ch; margin: 0 0 1.5rem; }
 /* Only the standalone link home is a tap target; an inline link in a sentence would not want this. */
 .home {
-  display: inline-block;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  display: inline-flex;
+  align-items: center;
+  font-family: "JetBrains Mono var", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
   min-height: 2.75rem;
   min-width: 2.75rem;
-  padding: 1rem 1.5rem;
-  border: 1px solid var(--link);
+  padding: 0 1.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--on-accent);
   text-decoration: none;
 }
+.home:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 </style>
 </head>
 <body>
 <main>
+<p class="mark">kendle</p>
 <h1>Not found</h1>
 <p>There is nothing at this address. The site is one page.</p>
 <p><a class="home" href="/">Back to the front page</a></p>
