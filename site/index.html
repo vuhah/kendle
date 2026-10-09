@@ -105,7 +105,7 @@
 <li><strong>Whose files are these?</strong> Five agents collide in one checkout.</li>
 <li><strong>Who checked this?</strong> Nothing stands between what they wrote and your main branch.</li>
 </ul>
-<p class="aside">kendle answers those three: a state in the sidebar, a worktree each, <code>kendle gate</code> before any push.</p>
+<p class="aside">kendle answers all three: a state in the sidebar, a worktree each, <code>kendle gate</code> before any push.</p>
 </div>
 </section>
 
@@ -114,14 +114,14 @@
 <p class="eyebrow" aria-hidden="true">today</p>
 <h2>What it does today</h2>
 <p class="lead">Built, public, and checkable in an afternoon.</p>
-<p>MIT. Python's standard library and a tmux config, so there is nothing to audit. Status: young &mdash; a month in one team's monorepo, just lifted out. <a href="https://github.com/vuhah/kendle">Go and look</a>.</p>
+<p>MIT, Python's standard library and a tmux config, so there is nothing to audit. Status: young &mdash; a month in one team's monorepo. <a href="https://github.com/vuhah/kendle">Go and look</a>.</p>
 <!-- slot: stage - where the project or the company actually is, in plain words -->
 
 <h3>A team per piece of work</h3>
 <div class="split">
 <div class="split-say">
 <p>One git worktree each, run by a manager you talk to and six sub-agents.</p>
-<p>You touch it three times: the spec, <strong>plan</strong>, <strong>push</strong>. The roles go round until tests and review pass, then one commit and <code>kendle gate</code>.</p>
+<p>You touch it three times: the spec, <strong>plan</strong>, <strong>push</strong>. The roles go round until tests and review pass, then one commit through <code>kendle gate</code>.</p>
 </div>
 <figure class="team">
 <svg viewBox="0 0 300 312" role="img">
@@ -188,14 +188,13 @@
 <li><strong>Ask</strong> Read-only questions on the latest base branch.</li>
 <li><strong>Review</strong> Someone else's changes side by side, read-only.</li>
 <li><strong>Logs</strong> The selected feature's services, live, with crash detection.</li>
-<li><strong>Housekeeping</strong> Idle services stopped, caches trimmed, all resumable after a reboot.</li>
+<li><strong>Housekeeping</strong> Idle services stopped, caches trimmed, resumable after a reboot.</li>
 </ul>
-<p class="aside">Everything the console does is also a command a script can drive.</p>
 
 <h3>Autopilot</h3>
 <p>File an issue, add a label, come back to a merged pull request &mdash; only your label, only accounts you listed. The team can never push or use <code>gh</code>.</p>
 
-<h3>What it promises, each from something that went wrong once</h3>
+<h3>What it promises, each learned the hard way</h3>
 <ul class="cards">
 <li><strong>Keys never wait on data.</strong> 10 ms a keystroke, a hundred sessions open.</li>
 <li><strong>Idle means nobody worked on it.</strong> From the last real message, not file times.</li>
@@ -222,41 +221,184 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <p class="eyebrow" aria-hidden="true">why now</p>
 <h2 class="pull">Supervision, not generation, is the half nobody has solved.</h2>
 <p class="lead">Coding agents now run long enough, and independently enough, that one person keeps several going at once instead of watching one.</p>
-<p>That moves the bottleneck. Writing the change used to be the hard part; now it is seeing across five of them and trusting one enough to let its work land. A better model does not solve that half.</p>
+<p>That moves the bottleneck: off writing the change, onto seeing across five of them and trusting one enough to let its work land. A better model does not solve that half.</p>
 </div>
 </section>
 
 <section id="vision" class="slab slab-alt">
 <div class="wrap">
 <p class="eyebrow" aria-hidden="true">where it's going</p>
-<h2>Where it's going</h2>
-<p class="notice"><strong>None of this is built.</strong> No dates, no promises, no roadmap &mdash; just the picture kendle is aimed at, so you can judge it.</p>
-<p class="lead">Five rungs, in order. Each needs the one below it standing first.</p>
+<h2>A console is the first rung, not the product</h2>
+<p class="notice"><strong>Everything below is a concept.</strong> Drawn, not shipped, and marked on its face. No dates, no roadmap.</p>
+<p class="lead">A kendle session is four things: a worktree, a state, a gate, a log. Not one of them needs a terminal.</p>
+
+<figure class="climb-fig">
+<ol class="climb">
+<li class="is-now"><span class="tread"><span class="tread-n">now</span></span> <span class="climb-name">one terminal</span></li>
+<li><span class="tread"><span class="tread-n">1</span></span> <span class="climb-name">the hub</span></li>
+<li><span class="tread"><span class="tread-n">2</span></span> <span class="climb-name">a new engineer</span></li>
+<li><span class="tread"><span class="tread-n">3</span></span> <span class="climb-name">an assistant</span></li>
+<li><span class="tread"><span class="tread-n">4</span></span> <span class="climb-name">your phone</span></li>
+<li><span class="tread"><span class="tread-n">5</span></span> <span class="climb-name">a product</span></li>
+</ol>
+<figcaption>Step one you can clone today. The five above it are concepts.</figcaption>
+</figure>
 
 <ol class="ladder">
 <li>
 <h3><span class="rung" aria-hidden="true">1</span> The hub</h3>
-<p>Today the console is one tmux server, and the sidebar is yours alone. Right while the work is yours; wrong the moment anyone else needs to see it. Every rung needs it somewhere a team opens.</p>
+<div class="vrow">
+<div class="vsay">
+<p>One tmux server, one laptop, one person's sidebar: right while the work is yours, wrong the moment anyone else needs to see it. Move it somewhere a team opens and the same five states answer a bigger question: <em>what is this team running, and what is waiting on a human?</em> Nothing in the tool resists it.</p>
+</div>
+<figure class="mock">
+<p class="concept">Concept <span class="concept-x">not built</span></p>
+<div class="shot" role="img" aria-label="Concept, not built: a kendle hub - every repository a team owns down one side, and three columns of features across all of them: the ones waiting on a human answer, the ones running, and one through the gate waiting to be pushed.">
+<div class="hub-bar">
+<span class="hub-mark">kendle hub</span>
+<span class="hub-tabs"><span class="hub-tab is-on">board</span><span class="hub-tab">gates</span><span class="hub-tab">history</span></span>
+<span class="hub-chip">2 need you</span>
+</div>
+<div class="hub-body">
+<div class="hub-rail">
+<p class="hub-rail-h">repositories</p>
+<p class="hub-repo is-on"><span class="dot ask"></span> shop <span class="hub-n">4</span></p>
+<p class="hub-repo"><span class="dot active"></span> api <span class="hub-n">3</span></p>
+<p class="hub-repo"><span class="dot active"></span> web <span class="hub-n">2</span></p>
+<p class="hub-repo"><span class="dot idle"></span> infra <span class="hub-n">1</span></p>
+<p class="hub-rail-h">states</p>
+<p class="hub-repo"><span class="dot ask"></span> ask <span class="hub-n">2</span></p>
+<p class="hub-repo"><span class="dot review"></span> review <span class="hub-n">1</span></p>
+<p class="hub-repo"><span class="dot active"></span> active <span class="hub-n">5</span></p>
+<p class="hub-repo"><span class="dot idle"></span> idle <span class="hub-n">3</span></p>
+</div>
+<div class="hub-board">
+<div class="hub-col">
+<p class="hub-col-h"><span class="dot ask"></span> needs you <span class="hub-n">2</span></p>
+<div class="fcard is-ask">
+<p class="fcard-top"><span class="fcard-repo">shop</span><span class="fcard-age">overnight</span></p>
+<p class="fcard-name">checkout double-charges on retry</p>
+<p class="fcard-q">the two retry paths disagree about what counts as the same attempt &mdash; which is the rule?</p>
+<p class="fcard-roles"><span class="rdot on"></span><span class="rdot on"></span><span class="rdot now"></span><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span><span class="fcard-who">builder, waiting</span></p>
+</div>
+<div class="fcard">
+<p class="fcard-top"><span class="fcard-repo">api</span><span class="fcard-age">3h</span></p>
+<p class="fcard-name">rate-limit headers</p>
+<p class="fcard-q">review left one blocker: the retry-after clamp has no test</p>
+</div>
+</div>
+<div class="hub-col">
+<p class="hub-col-h"><span class="dot active"></span> running <span class="hub-n">5</span></p>
+<div class="fcard">
+<p class="fcard-top"><span class="fcard-repo">web</span><span class="fcard-age">12m</span></p>
+<p class="fcard-name">image cache eviction</p>
+<p class="fcard-roles"><span class="rdot on"></span><span class="rdot on"></span><span class="rdot on"></span><span class="rdot now"></span><span class="rdot"></span><span class="rdot"></span><span class="fcard-who">tester</span></p>
+</div>
+<div class="fcard">
+<p class="fcard-top"><span class="fcard-repo">shop</span><span class="fcard-age">41m</span></p>
+<p class="fcard-name">search ranking tie-break</p>
+<p class="fcard-roles"><span class="rdot on"></span><span class="rdot on"></span><span class="rdot on"></span><span class="rdot on"></span><span class="rdot now"></span><span class="rdot"></span><span class="fcard-who">reviewer</span></p>
+</div>
+<div class="fcard">
+<p class="fcard-top"><span class="fcard-repo">infra</span><span class="fcard-age">2h</span></p>
+<p class="fcard-name">nightly backup alarm</p>
+<p class="fcard-roles"><span class="rdot on"></span><span class="rdot now"></span><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span><span class="rdot"></span><span class="fcard-who">planner</span></p>
+</div>
+</div>
+<div class="hub-col">
+<p class="hub-col-h"><span class="dot review"></span> through the gate <span class="hub-n">1</span></p>
+<div class="fcard fcard-go">
+<p class="fcard-top"><span class="fcard-repo">shop</span><span class="fcard-age">just now</span></p>
+<p class="fcard-name">csv export for orders</p>
+<p class="fcard-gate">gate clean &middot; one commit &middot; say push</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<figcaption>Every repository a team owns, on one board.</figcaption>
+</figure>
+</div>
 </li>
+
 <li>
 <h3><span class="rung" aria-hidden="true">2</span> A new engineer on the team</h3>
-<p>It is Monday. At the top of the hub is a feature nobody started on Friday: <em>checkout double-charges on retry</em>, picked up overnight, now on one question. It is the question a new hire asks &mdash; <em>the two retry paths disagree about what counts as the same attempt; which is the rule?</em> &mdash; and you answer it in a sentence. By the time you look again: a spec, a plan, one commit through the gate.</p>
+<div class="vsay">
+<p>It is Monday. At the top of that board is a feature nobody started on Friday: <em>checkout double-charges on retry</em>, picked up overnight, now on one question. It is the question a new hire asks &mdash; <em>the two retry paths disagree about what counts as the same attempt; which is the rule?</em> &mdash; and you answer it in a sentence. By the time you look again: a spec, a plan, one commit through the gate.</p>
+<p>What compounds is not the model, but what that answer taught it about this repository.</p>
+</div>
 </li>
+
 <li>
 <h3><span class="rung" aria-hidden="true">3</span> An assistant over the hub</h3>
-<p>The console is keys today: <code>a</code> to ask, <code>g</code> to review, <code>K</code> to stop. Quick in your fingers, a wall before that. Saying it instead is nearer than it sounds: it is all already commands.</p>
+<div class="vrow">
+<div class="vsay">
+<p>The console is keys today: <code>a</code> to ask, <code>g</code> to review, <code>K</code> to stop. Quick in your fingers, a wall before that. Saying it instead is nearer than it sounds: every one of those keys is already a command a script can drive.</p>
+</div>
+<figure class="mock mock-chat">
+<p class="concept">Concept <span class="concept-x">not built</span></p>
+<div class="shot" role="img" aria-label="Concept, not built: an assistant over the hub - someone asks in plain words why a feature is still open, kendle answers with the reviewer's blocker and offers three next moves, and the following sentence starts the fix and sets the condition for pushing it.">
+<div class="hub-bar">
+<span class="hub-mark">ask kendle</span>
+<span class="hub-tabs"><span class="hub-tab">shop</span><span class="hub-tab">api</span><span class="hub-tab">web</span></span>
+<span class="hub-chip">all repositories</span>
+</div>
+<div class="chat">
+<p class="msg you">why is search-rank still open?</p>
+<div class="msg bot">
+<p>The reviewer left one blocker: the tie-break is untested when two results score the same. The builder has been idle since, waiting on you.</p>
+<p class="chips"><span class="chip">show the review</span><span class="chip">start the fix</span><span class="chip">leave it</span></p>
+</div>
+<p class="msg you">start the fix, and push it if the gate is green</p>
+<div class="msg bot">
+<p>Opened <b>search-rank-tiebreak</b> in its own worktree. Test first, then the fix. I will not push on a red gate.</p>
+<p class="chat-run"><span class="dot active"></span> planner done &middot; builder writing the failing test</p>
+</div>
+<p class="chat-ask">ask for anything the hub can do<span class="caret"></span></p>
+</div>
+</div>
+<figcaption>Plain words in, the same commands out.</figcaption>
+</figure>
+</div>
 </li>
+
 <li>
 <h3><span class="rung" aria-hidden="true">4</span> Away from the desk</h3>
-<p>Autopilot already runs without you, but the person it stops for has to be at a terminal, and a run that stalls at midnight wastes the night. The picture is a phone: one line on what it is stuck on, one answer, and it carries on.</p>
+<div class="vrow">
+<div class="vsay">
+<p>Autopilot already runs without you, but the person it stops for has to be at a terminal: a run that blocks at midnight wastes the night. Answering from a bus stop is a small feature and a large change. It is the difference between agents that work while you sleep and agents that wait until you wake up.</p>
+</div>
+<figure class="mock mock-phone">
+<p class="concept">Concept <span class="concept-x">not built</span></p>
+<div class="shot shot-phone" role="img" aria-label="Concept, not built: kendle on a phone just before midnight - one blocked feature showing the question its agent is stuck on with two one-tap answers, and under it a feature through the gate offering push or hold.">
+<p class="ph-status"><span>23:58</span><span class="ph-bars"><i></i><i></i><i></i></span></p>
+<p class="ph-head"><span class="ph-mark">kendle</span><span class="ph-chip">2 waiting</span></p>
+<div class="ph-card">
+<p class="fcard-top"><span class="dot ask"></span><span class="fcard-repo">shop</span><span class="fcard-age">checkout-retry</span></p>
+<p class="ph-q">The two retry paths disagree about what counts as the same attempt. Which is the rule?</p>
+<p class="chips"><span class="chip">the idempotency key</span><span class="chip">the request id</span></p>
+<p class="ph-reply">or answer in your own words<span class="caret"></span></p>
+</div>
+<div class="ph-card">
+<p class="fcard-top"><span class="dot active"></span><span class="fcard-repo">shop</span><span class="fcard-age">csv-export</span></p>
+<p class="ph-gate">gate clean &middot; one commit &middot; tests green on both</p>
+<p class="chips"><span class="chip chip-go">push</span><span class="chip">hold</span></p>
+</div>
+</div>
+<figcaption>One question, one answer, and the night is not wasted.</figcaption>
+</figure>
+</div>
 </li>
+
 <li>
 <h3><span class="rung" aria-hidden="true">5</span> Something people pay for</h3>
-<p>Some of this may become a paid product one day; that is as far as it goes. No price, no tier, no date, no business model &mdash; inventing one would be the same lie as inventing a user count. kendle is MIT today.</p>
+<div class="vsay">
+<p>The hub is the first rung that costs money to run and the first worth paying for. No price, no tier, no date: inventing one would be the same lie as inventing a user count. The tool is MIT and stays that way.</p>
+</div>
 </li>
 </ol>
 
-<p class="notice"><strong>What would have to be true first.</strong> Three walls stand in front of all five. <strong>Shared state</strong>: one tmux server two people can open at once. <strong>Trust</strong>: who may start a session, and what an agent may run. <strong>Cost</strong>: unattended agents spend tokens the whole time they run.</p>
+<p class="notice"><strong>What would have to be true first.</strong> Three walls, and not one of them is a model problem. <strong>Shared state</strong>: one server two people can open, where today there is a socket on a laptop. <strong>Trust</strong>: who may start a session, and what an agent may run unwatched. <strong>Cost</strong>: unattended agents spend tokens every minute they run.</p>
 </div>
 </section>
 
@@ -267,10 +409,10 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <p class="lead">Questions, not an order of work.</p>
 <ul class="questions">
 <li>Where does the shared state live, and who runs it?</li>
-<li>Who may start a session, whose issues a loop acts on, what an agent may run?</li>
+<li>Who may start a session, and what may an agent run unwatched?</li>
 <li>How does the cost of unattended agents stay predictable?</li>
 <li>An open-source tool with something hosted beside it, or something else?</li>
-<li>Which rung is worth building first, and what would tell us we picked wrong?</li>
+<li>Which rung first, and what would tell us we picked wrong?</li>
 </ul>
 </div>
 </section>
