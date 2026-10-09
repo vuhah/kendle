@@ -1,0 +1,386 @@
+/* The whole site's styling. One file, no imports, nothing fetched from anywhere else, so the page
+   opens the same from disk as it does from the web.
+
+   The look is taken from the tool rather than invented for it. kendle is a tmux console: a framed
+   sidebar, box rules, and a short monospace label set into the top edge of each panel. So every
+   section here is a framed panel with its label notched into the rule, the way `┌ panels ─────` is
+   drawn, and monospace carries the wordmark, the labels, the role names, the diagram and code -
+   never a paragraph of prose. One type scale and one spacing step live on :root and every size in
+   the file names a step. It all has to be readable at 320 pixels wide, because half the page argues
+   for using kendle from a phone. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Type: one ratio, 1.2, from a 1rem body. */
+  --f--1: 0.833rem;
+  --f-0: 1rem;
+  --f-1: 1.2rem;
+  --f-2: 1.44rem;
+  --f-3: 1.728rem;
+  --f-4: 2.074rem;
+  --f-5: 2.488rem;
+  --f-6: 2.986rem;
+
+  /* Space: one step and the multiples of it the page uses. */
+  --space: 0.5rem;
+  --s1: var(--space);
+  --s2: calc(var(--space) * 2);
+  --s3: calc(var(--space) * 3);
+  --s4: calc(var(--space) * 4);
+  --s5: calc(var(--space) * 5);
+  --s6: calc(var(--space) * 6);
+  --s8: calc(var(--space) * 8);
+
+  /* The gutter, so the panel labels line up with the text inside them. */
+  --pad: var(--s2);
+
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+
+  /* Light. The accent is the console's own "working" green; --rule-strong is the one that carries
+     meaning - panel frames and the diagram - so it is held above 3:1, not left at a hairline. */
+  --bg: #ffffff;
+  --surface: #f5f7f9;
+  --sunken: #eceff3;
+  --text: #1f2328;
+  --muted: #50575e;
+  --link: #0a4d9e;
+  --accent: #0a6048;
+  --rule: #d8dde2;
+  --rule-strong: #7b848e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --sunken: #11161d;
+    --text: #e6edf3;
+    --muted: #9aa6b2;
+    --link: #7cb7ff;
+    --accent: #5fd6a8;
+    --rule: #262d36;
+    --rule-strong: #68737f;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 100%;
+  line-height: 1.65;
+}
+
+.wrap {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 0 var(--pad);
+}
+
+/* The header and the footer are the surface the panels sit on, as the sidebar is behind the panes. */
+.band {
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+footer.band {
+  border-bottom: 0;
+  border-top: 1px solid var(--rule-strong);
+  margin-top: var(--s8);
+}
+
+header.band .wrap { padding-top: var(--s5); padding-bottom: var(--s3); }
+footer.band .wrap { padding-top: var(--s3); padding-bottom: var(--s5); }
+
+h1 {
+  font-family: var(--mono);
+  font-size: var(--f-5);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+/* The block cursor after the wordmark. It is empty generated content, so a screen reader reads the
+   name and nothing else. */
+h1::after {
+  content: "";
+  display: inline-block;
+  width: 0.55ch;
+  height: 0.85em;
+  margin-left: 0.2em;
+  vertical-align: -0.06em;
+  background: var(--accent);
+}
+
+h2 {
+  font-size: var(--f-3);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--s2);
+}
+
+h3 {
+  font-size: var(--f-1);
+  line-height: 1.3;
+  margin: var(--s5) 0 var(--s2);
+  padding-left: var(--s2);
+  border-left: 2px solid var(--accent);
+}
+
+p, ul { max-width: 68ch; }
+
+p { margin: 0 0 var(--s2); }
+
+ul {
+  margin: 0 0 var(--s2);
+  padding-left: var(--s3);
+}
+
+li { margin-bottom: var(--s1); }
+
+a { color: var(--link); }
+
+a:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 2px;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  background: var(--sunken);
+  padding: 0.1em 0.35em;
+}
+
+pre {
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
+pre code {
+  background: none;
+  padding: 0;
+  font-size: 1em;
+}
+
+/* Each section is a panel with its name set into the top rule, the way the console draws one. */
+.panel {
+  position: relative;
+  border: 1px solid var(--rule-strong);
+  padding: 0 var(--pad) var(--s4);
+  margin: var(--s8) 0;
+}
+
+.panel > h2 { padding-top: var(--s4); }
+
+.panel > h2 .tag {
+  position: absolute;
+  top: 0;
+  left: var(--pad);
+  transform: translateY(-50%);
+  background: var(--bg);
+  padding: 0 var(--s1);
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.tagline {
+  color: var(--muted);
+  font-style: italic;
+  margin-top: var(--s2);
+}
+
+.lead { font-size: var(--f-1); }
+
+.fine { color: var(--muted); margin: 0; }
+
+/* The panel diagram is drawn with box characters: it cannot wrap, so it scrolls inside its own box
+   rather than pushing the page sideways. This is the only overflow rule in the file. */
+pre.diagram {
+  overflow-x: auto;
+  background: var(--bg);
+  border: 1px solid var(--rule-strong);
+  padding: var(--s2);
+  margin: var(--s3) 0;
+  font-size: 0.8em;
+  line-height: 1.4;
+}
+
+pre.commands {
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--accent);
+  padding: var(--s2);
+  margin: var(--s3) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 2px solid var(--accent);
+  padding: var(--s2);
+  margin: var(--s3) 0;
+  max-width: 68ch;
+}
+
+/* The rung marker on each future, so the five read as one ladder. */
+.rung {
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-right: 0.4em;
+}
+
+/* The open questions are questions, and the marker says so. */
+.questions {
+  list-style: none;
+  padding-left: 0;
+}
+
+.questions li {
+  position: relative;
+  padding-left: 3ch;
+}
+
+.questions li::before {
+  content: "?";
+  position: absolute;
+  left: 0;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+
+/* The team drawn as the console frames it. The sizes inside the SVG are user units on a 300-wide
+   viewBox, so capping the measure here is what keeps its smallest text above 12 pixels on a phone
+   and stops it swelling on a wide screen. */
+.team {
+  margin: var(--s4) 0;
+}
+
+.team svg {
+  display: block;
+  width: 100%;
+  max-width: 24rem;
+  height: auto;
+  margin: 0 auto;
+}
+
+.team .box {
+  fill: var(--surface);
+  stroke: var(--rule-strong);
+}
+
+.team .mgr {
+  fill: var(--sunken);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.team .you-box {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.team .wire {
+  fill: none;
+  stroke: var(--rule-strong);
+}
+
+.team .head { fill: var(--rule-strong); }
+
+.team .you-wire {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.team .you-head { fill: var(--accent); }
+
+.team text {
+  font-family: var(--mono);
+  fill: var(--text);
+}
+
+.team .owns { fill: var(--muted); }
+
+.team .touch { fill: var(--accent); }
+
+.team figcaption {
+  color: var(--muted);
+  max-width: 68ch;
+  margin-top: var(--s2);
+}
+
+/* Standalone links are tap targets before they are links: at least 44 by 44 CSS pixels. */
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s3);
+  margin-top: var(--s3);
+  font-family: var(--mono);
+  font-size: var(--f--1);
+}
+
+.nav a {
+  display: inline-block;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: var(--s2) 0;
+  text-align: center;
+  text-underline-offset: 0.3em;
+}
+
+.cta {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: var(--f-0);
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--link);
+  text-decoration: none;
+}
+
+.cta:hover {
+  background: var(--sunken);
+  text-decoration: underline;
+}
+
+@media (min-width: 40rem) {
+  :root { --pad: var(--s4); }
+
+  h1 { font-size: var(--f-6); }
+
+  pre.diagram { font-size: 0.9em; }
+}
+
+/* The one moving thing on the page: the cursor after the wordmark, in the header, where nobody is
+   reading a sentence. Opacity only, and nothing moves at all for a reader who asked it not to. */
+@media (prefers-reduced-motion: no-preference) {
+  h1::after { animation: blink 1.5s step-end infinite; }
+
+  .cta { transition: background 0.15s linear; }
+
+  @keyframes blink {
+    0%, 65% { opacity: 1; }
+    70%, 100% { opacity: 0; }
+  }
+}

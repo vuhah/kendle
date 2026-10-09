@@ -4,6 +4,8 @@
 
 *A kendle is a litter of kittens - here, a small team of agents that work together.*
 
+What it does and where it's going: <https://kendle.fit>
+
 One terminal screen for running many Claude Code sessions over one git repository: a sidebar of
 panels on the left, the session you picked on the right, and the services' logs beside it.
 
@@ -184,7 +186,7 @@ Each of these came from something that went wrong once:
 
     python3 -m unittest discover -s tests
 
-About 50 tests, half a minute. Each runs kendle the way a user does, against a throwaway git repo
+About 90 tests, a minute. Each runs kendle the way a user does, against a throwaway git repo
 with a scratch origin, on a tmux socket, state folder and transcript folder of its own, with a
 stand-in for `claude` that records what it was asked to do - nothing touches your real sessions.
 
