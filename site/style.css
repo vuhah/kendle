@@ -67,7 +67,7 @@
   --mono: "JetBrains Mono var", ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
 
   /* Light. Warm paper, ink, and the console's own "working" green as the one accent. Every pair
-     below was measured: text 17.8:1, muted 6.5:1, accent 7.8:1, warn 5.8:1 on their backgrounds,
+     below was measured: text 17.8:1, muted 6.5:1 and accent 7.8:1 on their backgrounds,
      and --rule-strong, which is the only border that carries meaning, 3.2:1. */
   --bg: #fcfcfb;
   --bg-2: #f4f4f1;
@@ -79,8 +79,6 @@
   --accent: #0b5c43;
   --accent-soft: #e9f4ef;
   --on-accent: #ffffff;
-  --warn: #8a5200;
-  --warn-soft: #fdf3e0;
   --rule: #e2e2dd;
   --rule-strong: #8d8f87;
   --focus: #0b5c43;
@@ -127,8 +125,6 @@
     --accent: #4fd3a0;
     --accent-soft: #122520;
     --on-accent: #06120d;
-    --warn: #f0b429;
-    --warn-soft: #2a2011;
     --rule: #222a35;
     --rule-strong: #6d7988;
     --focus: #4fd3a0;
@@ -761,18 +757,28 @@ pre.commands code {
 
 /* --- The ladder ------------------------------------------------------------------------------------ */
 
-.notice {
-  background: var(--warn-soft);
-  border: 1px solid var(--warn);
-  border-radius: var(--r2);
-  padding: var(--s3);
-  margin: var(--s4) 0;
-  color: var(--text);
-  font-size: 0.97em;
-  max-width: var(--measure);
+/* A label for a block that is not a section of its own - the problems closing the roadmap. It is
+   kept out of the heading outline on purpose: the rungs own the h3s in that section. */
+.block-h {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin: var(--s8) 0 var(--s2);
+  font-family: var(--mono);
+  font-size: var(--f--1);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
 }
 
-.notice strong { color: var(--warn); }
+.block-h::before {
+  content: "";
+  flex: none;
+  width: 1.5rem;
+  height: 2px;
+  background: var(--accent);
+}
 
 .ladder {
   list-style: none;
@@ -812,61 +818,109 @@ pre.commands code {
   font-weight: 600;
 }
 
-/* --- The climb: six rungs as one picture --------------------------------------------------- */
+/* --- The track: the roadmap as six stops on one rail ---------------------------------------- */
 
-/* The whole argument of the vision section in one graphic. On a phone it is a numbered strip,
-   because a staircase needs width before it reads as one; from 48rem up the treads rise. */
-.climb-fig { margin: var(--s5) 0 0; }
+/* Six stops, one rail, three phases: shipped, next, after. The rail is drawn from the accent at
+   the shipped end to the quiet rule colour at the far end, so the eye travels forward along it.
+   On a phone it runs down the page; from 48rem up it runs across and ends in an arrow. */
+.track-fig { margin: var(--s5) 0 0; }
 
-.climb {
+.track {
+  position: relative;
   list-style: none;
   display: grid;
-  gap: 2px;
+  gap: 0;
   padding: 0;
   margin: 0;
   max-width: none;
 }
 
-.climb li {
+/* The rail itself, behind the stops. */
+.track::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 0.9rem;
+  bottom: 0.9rem;
+  width: 2px;
+  background: linear-gradient(180deg, var(--accent) 18%, var(--rule-strong));
+}
+
+.track li {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--s2);
   margin: 0;
-  padding: 2px 0;
+  padding: 0.2rem 0;
 }
 
-.tread {
-  display: grid;
-  place-items: center;
-  flex: none;
-  min-width: 2.5rem;
-  padding: 0.2em 0.6em;
+/* Only the first stop of each phase is labelled; the label sits above the stop so the six stops
+   stay evenly spaced whether or not they carry one. */
+.track .lead-stop { margin-top: var(--s5); }
+
+.track .lead-stop:first-child { margin-top: 0; }
+
+.stop-tag {
+  position: absolute;
+  left: 1.5rem;
+  top: -1.5rem;
+  padding: 0.1em 0.7em;
   font-family: var(--mono);
   font-size: var(--f--1);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border: 1px dashed var(--accent);
-  border-radius: var(--r1);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
 }
 
-/* The one rung that exists is the only solid block on the graphic. */
-.climb .is-now .tread {
+.is-ship .stop-tag {
   color: var(--on-accent);
   background: var(--accent);
-  border-style: solid;
+  border-color: var(--accent);
 }
 
-.climb-name {
+.is-next .stop-tag {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.stop-dot {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-2);
+  border: 2px solid var(--rule-strong);
+}
+
+/* What is built is the one filled stop, and it is lit rather than shrunk beside the rest. */
+.is-ship .stop-dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+.is-next .stop-dot { border-color: var(--accent); }
+
+.stop-name {
   font-family: var(--mono);
   font-size: var(--f--1);
+  line-height: 1.3;
   color: var(--muted);
 }
 
-.climb .is-now .climb-name { color: var(--text); }
+.is-ship .stop-name { color: var(--text); font-weight: 700; }
 
-.climb-fig figcaption,
+.is-next .stop-name { color: var(--text); }
+
+.track-fig figcaption,
 .mock figcaption {
   color: var(--muted);
   font-size: var(--f--1);
@@ -874,19 +928,19 @@ pre.commands code {
   max-width: var(--measure);
 }
 
-/* --- The concept shots ---------------------------------------------------------------------- */
+/* --- The shots of what is coming ---------------------------------------------------------------------- */
 
-/* Each unbuilt future is drawn the way the hero console is drawn - markup and CSS, no image - and
-   each one carries the word CONCEPT on its face. The badge is a sibling of the picture, never a
-   child of it: a role="img" hides its own contents, so a badge inside would be the one thing on
-   the page a screen reader could not hear. Its label repeats the word for the same reason. */
+/* Each stop still ahead of us is drawn the way the hero console is drawn - markup and CSS, no
+   image - and each one carries COMING SOON on its face. The badge is a sibling of the picture,
+   never a child of it: a role="img" hides its own contents, so a badge inside would be the one
+   thing on the page a screen reader could not hear. Its label opens with the same words. */
 .mock {
   position: relative;
   margin: var(--s5) 0 0;
   padding-top: var(--s5);
 }
 
-.concept {
+.soon {
   position: absolute;
   top: 0;
   right: 0;
@@ -894,10 +948,10 @@ pre.commands code {
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: var(--s2);
+  gap: 0.6em;
   margin: 0;
   max-width: none;
-  padding: 0.3em 0.9em;
+  padding: 0.35em 1em;
   font-family: var(--mono);
   font-size: var(--f--1);
   font-weight: 700;
@@ -909,28 +963,47 @@ pre.commands code {
   box-shadow: var(--shadow-m);
 }
 
-.mock-phone .concept { right: auto; left: 50%; transform: translateX(-50%); }
+.mock-phone .soon { right: auto; left: 50%; transform: translateX(-50%); }
 
-.concept-x {
-  padding-left: var(--s2);
-  border-left: 1px solid var(--on-accent);
-  font-weight: 400;
-  letter-spacing: 0.08em;
+/* The light that says work is under way, rather than a warning triangle that says it is not. */
+.soon-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--on-accent);
 }
 
 .vrow { display: grid; gap: var(--s4); }
 
-/* A conversation and a phone are narrow things; at desk width they are centred under the prose
-   rather than stretched to the column. */
-.mock-chat { max-width: 42rem; }
+/* A thread, a conversation and a phone are narrow things; at desk width they are centred under
+   the prose rather than stretched to the column. */
+.mock-thread { max-width: 48rem; }
 
-.mock-phone { max-width: 26rem; }
+.mock-chat { max-width: 46rem; }
 
+.mock-phone { max-width: 28rem; }
+
+.mock-thread,
 .mock-chat,
 .mock-phone { margin-left: auto; margin-right: auto; }
 
+.mock-thread figcaption,
 .mock-chat figcaption,
 .mock-phone figcaption { text-align: center; }
+
+/* What the agent took away from the answer, marked so it reads as the point of the picture. */
+.learn {
+  display: inline-block;
+  margin-right: 0.6em;
+  padding: 0 0.6em;
+  border-radius: var(--r1);
+  background: var(--halo-active);
+  color: var(--st-active);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.9em;
+}
 
 .vsay p { color: var(--muted); }
 
@@ -938,8 +1011,11 @@ pre.commands code {
 
 /* --- The hub ---------------------------------------------------------------------------------- */
 
+/* The title bar wraps rather than being clipped: at 320 pixels a long feature name and its chip
+   do not fit on one line, and a mockup here scales, it never scrolls. */
 .hub-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s2);
   padding: var(--s1) var(--s2);
@@ -1393,39 +1469,44 @@ pre.commands code {
 
   .hub-tabs { display: flex; }
 
-  /* There is room for the staircase: the treads rise off one ground line, the only solid one
-     already built, and the label under each is what the rung is called further down the page. */
-  .climb { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; }
+  /* There is room for the rail to run across: six evenly spaced stops, the phase label above the
+     first of each, and an arrowhead past the last one so the line reads as going somewhere. */
+  .track { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
-  .climb li {
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: flex-end;
-    gap: 0;
-    padding: 0;
+  .track::before {
+    left: 8px;
+    right: 1.75rem;
+    top: calc(var(--s5) + 7px);
+    bottom: auto;
+    width: auto;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent) 18%, var(--rule-strong));
   }
 
-  .tread {
-    min-width: 0;
-    padding: var(--s1);
-    border-bottom: 0;
-    border-radius: var(--r2) var(--r2) 0 0;
-  }
-
-  .climb li:nth-child(1) .tread { height: 2.75rem; }
-  .climb li:nth-child(2) .tread { height: 3.75rem; }
-  .climb li:nth-child(3) .tread { height: 4.75rem; }
-  .climb li:nth-child(4) .tread { height: 5.75rem; }
-  .climb li:nth-child(5) .tread { height: 6.75rem; }
-  .climb li:nth-child(6) .tread { height: 7.75rem; }
-
-  .climb-name {
-    min-height: 3.25rem;
-    padding: var(--s2) var(--s1) 0;
-    line-height: 1.3;
-    text-align: center;
+  .track::after {
+    content: "";
+    position: absolute;
+    right: 1rem;
+    top: calc(var(--s5) + 3px);
+    width: 10px;
+    height: 10px;
     border-top: 2px solid var(--rule-strong);
+    border-right: 2px solid var(--rule-strong);
+    transform: rotate(45deg);
   }
+
+  .track li {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s2);
+    padding: var(--s5) var(--s3) 0 0;
+  }
+
+  .track .lead-stop { margin-top: 0; }
+
+  .stop-tag { left: 0; top: 0; }
+
+  .stop-name { min-height: 2.6rem; }
 }
 
 @media (min-width: 64rem) {
@@ -1447,6 +1528,12 @@ pre.commands code {
 
   .hub-col:nth-child(3) { display: block; }
 
+  /* At desk width the pictures are the argument, so they get the room to be read rather than
+     glanced at. */
+  .console,
+  .shot { font-size: 0.9375em; }
+
+  .mock { margin-top: var(--s6); }
 }
 
 /* --- Motion, for readers who have not asked for stillness ------------------------------------------------ */

@@ -12,9 +12,9 @@
   <text x="120" y="66" font-family="Menlo, monospace" font-size="26" fill="#4fd3a0">kendle.fit</text>
   <text x="112" y="256" font-family="Menlo, monospace" font-size="128" font-weight="bold" fill="#e9eef5" letter-spacing="-5">kendle</text>
   <rect x="580" y="162" width="30" height="96" fill="#4fd3a0"/>
-  <text x="112" y="348" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="bold" fill="#e9eef5">One agent is easy. Five is a different job.</text>
-  <text x="112" y="408" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#8893a3">One terminal screen for a team of agents over one git repo:</text>
-  <text x="112" y="452" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#8893a3">a worktree each, and a gate before anything is pushed.</text>
+  <text x="112" y="348" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="bold" fill="#e9eef5">A team of agents. One place to run them.</text>
+  <text x="112" y="408" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#8893a3">A git worktree each, every state on one screen, and a gate</text>
+  <text x="112" y="452" font-family="Helvetica, Arial, sans-serif" font-size="34" fill="#8893a3">before anything reaches main. The console is out now.</text>
   <circle cx="121" cy="506" r="7" fill="#4fd3a0"/>
   <text x="140" y="516" font-family="Menlo, monospace" font-size="28" fill="#4fd3a0">github.com/vuhah/kendle</text>
 </svg>
