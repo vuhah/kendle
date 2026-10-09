@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kendle - one terminal screen for a team of agents</title>
+<meta name="description" content="kendle runs many Claude Code sessions over one git repo from one terminal screen: a worktree per piece of work, a team of agents, a gate before any push.">
+<link rel="canonical" href="https://kendle.fit/">
+<meta property="og:title" content="kendle - one terminal screen for a team of agents">
+<meta property="og:description" content="Many Claude Code sessions over one git repository, from a single terminal screen: a worktree per piece of work, a team of agents, and a gate before anything is pushed.">
+<meta property="og:url" content="https://kendle.fit/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="kendle">
+<meta property="og:image" content="https://kendle.fit/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://kendle.fit/og.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="band">
+<div class="wrap">
+<h1>kendle</h1>
+<p class="tagline">A kendle is a litter of kittens - here, a small team of agents that work together.</p>
+<p class="lead">One terminal screen for running many Claude Code sessions over one git repository: a sidebar of panels on the left, the session you picked on the right, and the services' logs beside it.</p>
+<pre class="diagram" tabindex="0" role="img" aria-label="The console: a sidebar of panels on the left, the session you picked in the middle, and service logs on the right.">
+┌ panels ──────────┬ the session you picked ─┬ service logs ─┐
+│ ASK    2         │                         │ ● api         │
+│ REVIEW 1 of 3    │  …                      │ ● web         │
+│ ACTIVE 3         │                         │ ✗ worker      │
+│ IDLE   5         │                         │               │
+└──────────────────┴─────────────────────────┴───────────────┘</pre>
+<nav class="nav" aria-label="Sections">
+<a href="#problem">problem</a>
+<a href="#today">today</a>
+<a href="#install">install</a>
+<a href="#why-now">why now</a>
+<a href="#vision">where it's going</a>
+<a href="#open">still open</a>
+<a href="#contact">contact</a>
+</nav>
+</div>
+</header>
+
+<main class="wrap">
+
+<section id="problem" class="panel">
+<h2><span class="tag" aria-hidden="true">problem</span> One agent is easy. Several are not.</h2>
+<p>Running one coding agent is a pleasure. Running five is a different job, and the terminal stops helping: you cannot see at a glance which of them is working, which is idle and which has been waiting an hour for an answer only you can give. They collide in one checkout, so two of them editing the same file becomes yours to untangle. And nothing stands between what one of them wrote and your main branch except you remembering to look before it lands.</p>
+<p>Every part of kendle below is an answer to one of those three, which is the only evidence offered here that they are the real problem: the sidebar counts what is active, idle, asking and waiting; each piece of work gets a git worktree of its own; and <code>kendle gate</code> runs before anything is pushed.</p>
+</section>
+
+<section id="today" class="panel">
+<h2><span class="tag" aria-hidden="true">today</span> What it does today</h2>
+<p>Everything in this section is built and running, and all of it is checkable in an afternoon: MIT and public, Python's standard library and a tmux config so there is no dependency to audit, a suite that drives kendle the way a user does and runs on macOS and Linux on every push, and autopilot already built rather than planned. Status: young - it ran for a month inside one team's monorepo and has just been lifted out of it. It is a working tool and not a mockup, so the useful thing to do with this section is <a href="https://github.com/vuhah/kendle">go and look</a>.</p>
+<!-- slot: stage - where the project or the company actually is, in plain words -->
+
+<h3>A worktree and a team per piece of work</h3>
+<p>Each piece of work gets one git worktree, run by a manager you talk to and a small team of sub-agents: planner, auditor, builder, tester, reviewer, shipper.</p>
+<p>You touch the flow three times. You approve the spec, you say <strong>plan</strong>, and you say <strong>push</strong>. In between, the planner asks its questions and writes the spec; builder, tester and reviewer go round until they pass; the shipper makes one commit and runs <code>kendle gate</code>. You get a ready report with evidence for every line, and nothing is pushed until you say push.</p>
+
+<figure class="team">
+<svg viewBox="0 0 300 312" role="img">
+<title>You talk to one manager; the manager runs planner, auditor, builder, tester, reviewer and shipper in that order, and your three touches land on the spec, on plan and on push.</title>
+<rect class="you-box" fill="none" stroke="currentColor" x="8" y="6" width="88" height="28"/>
+<text class="touch" fill="currentColor" x="52" y="25" font-size="15" text-anchor="middle">you</text>
+<path class="wire" fill="none" stroke="currentColor" d="M52 34 L52 46"/>
+<path class="head" fill="currentColor" d="M48 46 L52 53 L56 46 Z"/>
+<rect class="mgr" fill="none" stroke="currentColor" x="8" y="54" width="152" height="30"/>
+<text fill="currentColor" x="22" y="74" font-size="15">manager</text>
+<path class="wire" fill="none" stroke="currentColor" d="M26 84 L26 289"/>
+<path class="you-wire" fill="none" stroke="currentColor" d="M96 20 L284 20 L284 289"/>
+
+<path class="wire" fill="none" stroke="currentColor" d="M26 109 L44 109"/>
+<rect class="box" fill="none" stroke="currentColor" x="44" y="96" width="166" height="26"/>
+<text fill="currentColor" x="56" y="114" font-size="15">planner</text>
+<text class="owns" fill="currentColor" x="200" y="114" font-size="15" text-anchor="end">spec</text>
+<path class="wire" fill="none" stroke="currentColor" d="M123 124 L127 129 L131 124"/>
+
+<path class="wire" fill="none" stroke="currentColor" d="M26 145 L44 145"/>
+<rect class="box" fill="none" stroke="currentColor" x="44" y="132" width="166" height="26"/>
+<text fill="currentColor" x="56" y="150" font-size="15">auditor</text>
+<text class="owns" fill="currentColor" x="200" y="150" font-size="15" text-anchor="end">audit</text>
+<path class="wire" fill="none" stroke="currentColor" d="M123 160 L127 165 L131 160"/>
+<path class="you-wire" fill="none" stroke="currentColor" d="M284 145 L228 145"/>
+<path class="you-head" fill="currentColor" d="M220 145 L228 141 L228 149 Z"/>
+<text class="touch" fill="currentColor" x="256" y="139" font-size="15" text-anchor="middle">spec</text>
+
+<path class="wire" fill="none" stroke="currentColor" d="M26 181 L44 181"/>
+<rect class="box" fill="none" stroke="currentColor" x="44" y="168" width="166" height="26"/>
+<text fill="currentColor" x="56" y="186" font-size="15">builder</text>
+<text class="owns" fill="currentColor" x="200" y="186" font-size="15" text-anchor="end">code</text>
+<path class="wire" fill="none" stroke="currentColor" d="M123 196 L127 201 L131 196"/>
+<path class="you-wire" fill="none" stroke="currentColor" d="M284 181 L228 181"/>
+<path class="you-head" fill="currentColor" d="M220 181 L228 177 L228 185 Z"/>
+<text class="touch" fill="currentColor" x="256" y="175" font-size="15" text-anchor="middle">plan</text>
+
+<path class="wire" fill="none" stroke="currentColor" d="M26 217 L44 217"/>
+<rect class="box" fill="none" stroke="currentColor" x="44" y="204" width="166" height="26"/>
+<text fill="currentColor" x="56" y="222" font-size="15">tester</text>
+<text class="owns" fill="currentColor" x="200" y="222" font-size="15" text-anchor="end">tests</text>
+<path class="wire" fill="none" stroke="currentColor" d="M123 232 L127 237 L131 232"/>
+
+<path class="wire" fill="none" stroke="currentColor" d="M26 253 L44 253"/>
+<rect class="box" fill="none" stroke="currentColor" x="44" y="240" width="166" height="26"/>
+<text fill="currentColor" x="56" y="258" font-size="15">reviewer</text>
+<text class="owns" fill="currentColor" x="200" y="258" font-size="15" text-anchor="end">review</text>
+<path class="wire" fill="none" stroke="currentColor" d="M123 268 L127 273 L131 268"/>
+
+<path class="wire" fill="none" stroke="currentColor" d="M26 289 L44 289"/>
+<rect class="box" fill="none" stroke="currentColor" x="44" y="276" width="166" height="26"/>
+<text fill="currentColor" x="56" y="294" font-size="15">shipper</text>
+<text class="owns" fill="currentColor" x="200" y="294" font-size="15" text-anchor="end">gate</text>
+<path class="you-wire" fill="none" stroke="currentColor" d="M284 289 L228 289"/>
+<path class="you-head" fill="currentColor" d="M220 289 L228 285 L228 293 Z"/>
+<text class="touch" fill="currentColor" x="256" y="283" font-size="15" text-anchor="middle">push</text>
+</svg>
+<figcaption>You talk to one manager, and it runs the six roles down the list - planner writes the spec, auditor checks it, builder writes the code, tester and reviewer go round with the builder until both pass, and shipper makes the one commit and runs the gate. Your three touches come in on the right: you approve the spec, you say plan, and you say push.</figcaption>
+</figure>
+
+<h3>Ask, review, logs, housekeeping</h3>
+<ul>
+<li><strong>Ask</strong> - read-only questions on the latest base branch, for things that aren't work yet; a good answer can be promoted to a feature with the whole conversation as its requirement.</li>
+<li><strong>Review</strong> - up to three of someone else's changes checked out side by side, read-only, against Gerrit, GitHub or GitLab.</li>
+<li><strong>Logs</strong> - the selected feature's services, live, with crash detection.</li>
+<li><strong>Housekeeping</strong> - context and memory per session, idle services stopped, a disk budget that trims build caches but never code or uncommitted work, and everything resumable after a reboot.</li>
+</ul>
+<p>Everything the console does is a command too, so a script or another agent can drive it.</p>
+
+<h3>Autopilot</h3>
+<p>File an issue, add a label, and come back to a merged pull request. The loop picks up open issues carrying your label and opened by an account you listed - nobody else's, so strangers cannot set your teams to work.</p>
+<p>A feature team builds each one, with its manager standing in for you at the spec, the plan and the push. Then kendle rebases the commit if the base moved, runs <code>kendle gate</code>, pushes, and opens a pull request that closes the issue; a read-only review session reviews it, and the findings go back to the team for as many rounds as you allow. The team itself can never push or use <code>gh</code> - kendle does everything outside the worktree. When something needs a person, the issue is labelled <code>needs-human</code>, the console shows it, and you get a notification.</p>
+
+<h3>What it promises</h3>
+<p>Each of these came from something that went wrong once:</p>
+<ul>
+<li><strong>Keys never wait on data.</strong> The sidebar gathers in a background thread and draws from a snapshot; keystrokes stay around 10 ms with over a hundred sessions.</li>
+<li><strong>Quiet is not dead.</strong> A role blocked in one long tool call still counts as working; one its manager stopped does not.</li>
+<li><strong>Idle means nobody worked on it</strong> - measured from the last real message, never from file times, because idle sessions keep touching their own transcripts.</li>
+<li><strong>Nothing is deleted on its own</strong> except build caches whose worktree is gone. Sizes are shown first; code, branches and uncommitted work are never touched.</li>
+<li><strong>kendle only stops what it started.</strong> A port held by anything else is reported, never killed.</li>
+<li><strong>Commands run plainly</strong> - no <code>cd … &amp;&amp;</code>, no <code>VAR=…</code> prefixes - because Claude Code's permission rules match the whole command string.</li>
+</ul>
+
+<h3>Tests</h3>
+<p>Every test runs kendle the way a user does, against a throwaway git repo with a scratch origin, on a tmux socket, state folder and transcript folder of its own, with a stand-in for <code>claude</code> that records what it was asked to do - nothing touches your real sessions. The whole suite runs on macOS and Linux on every push, and the badge at the top of the README carries the count, where it is generated rather than written down.</p>
+<!-- slot: usage - real usage, only where it exists and can be checked -->
+</section>
+
+<section id="install" class="panel">
+<h2><span class="tag" aria-hidden="true">install</span> Install</h2>
+<p>You need macOS or Linux (both tested on every push), Python 3.9+, tmux 3.x, git, and <a href="https://claude.com/claude-code">Claude Code</a> (<code>claude</code> on your <code>PATH</code>). Nothing else - kendle is Python's standard library and a tmux config.</p>
+<pre class="commands"><code>git clone https://github.com/vuhah/kendle.git ~/kendle
+export PATH="$HOME/kendle/bin:$PATH"          # in ~/.zshrc or ~/.bashrc</code></pre>
+<p><a class="cta" href="https://github.com/vuhah/kendle">Read the rest on GitHub</a></p>
+</section>
+
+<section id="why-now" class="panel">
+<h2><span class="tag" aria-hidden="true">why now</span> Why this is worth building now</h2>
+<p>Coding agents have recently crossed a line: they now run long enough, and independently enough, that one person can keep several of them going at once instead of watching one. You can check that for yourself on the tool kendle is built on, which is also why kendle exists - it was written because one terminal stopped being enough for its author.</p>
+<p>That moves the bottleneck: when a person wrote the change, writing it was the hard part, and when several agents write it the hard parts are seeing what is happening across all of them at once and trusting one of them enough to let its work reach your main branch. Generation is the half that got solved in public and keeps getting better on its own. Supervision is the half nobody has solved, and a better model does not solve it - it is solved by somewhere to look and something that stops a bad change, which is what this is.</p>
+</section>
+
+<section id="vision" class="panel">
+<h2><span class="tag" aria-hidden="true">where it's going</span> Where it's going</h2>
+<p class="notice"><strong>None of what follows is built.</strong> There are no dates here, no promises and no roadmap - this is the picture kendle is aimed at, written down so you can judge for yourself whether it is worth aiming at.</p>
+<p>They are rungs rather than five separate wishes, in this order: a terminal tool, which is built, then the hub, then a new engineer on the team, then an assistant over it, then away from the desk, and then perhaps something people pay for. Each one needs the one below it standing first, which is also why none of them is a commitment.</p>
+
+<h3><span class="rung">rung one</span> The hub</h3>
+<p>Today the console is a tmux server on your own machine: one socket per workspace, one state folder, one sidebar that only you can see. That is exactly right while the work is yours, and it stops being right the moment a second person needs to know what is running - because the answer lives on a laptop that may be shut. The picture is the same sidebar, kept somewhere a team opens: every feature, every session, every gate, in the states kendle already computes. What would change is not the view but where the truth lives, and that is the whole difficulty - the drawing is the easy half. Everything below needs this first, because none of it works while the only copy of what is happening sits on one desk.</p>
+
+<h3><span class="rung">rung two</span> A new engineer on the team</h3>
+<p>It is Monday morning. You open the hub before you have finished your coffee, and the top of the list is a feature nobody started on Friday: <em>checkout double-charges on retry</em>, filed as an issue, picked up overnight, now sitting on one question. The question is the one a new hire asks in their first week - <em>the two retry paths in the API disagree about what counts as the same attempt; which one is the rule?</em> - and you answer it in a sentence, the way you would answer it standing at someone's desk, then go back to your own work. By the time you look again there is a spec, a plan an auditor has already argued with, and one commit that passed the gate, and the thing you have to do is read it. What makes that different from a code generator is the question itself: it had read the repository and the conventions, it found the contradiction, and it knew that settling it was not its call.</p>
+
+<h3><span class="rung">rung three</span> An assistant over the hub</h3>
+<p>The console today is keys: <code>a</code> to ask, <code>p</code> to promote an answer into a feature, <code>g</code> to review someone else's change, <code>K</code> to stop a session. They are quick once they are in your fingers, and a wall before that - the README has a keymap because it needs one. The picture is saying it instead: start the two features from yesterday's issues, tell me what is blocked, tell me why the gate failed on the web lane. This one is nearer than it sounds, because everything the console does is already a plain command, so an assistant would drive the surface a shell script already drives rather than a new one. The keys stay either way; nobody who has learned them should have to give them up.</p>
+
+<h3><span class="rung">rung four</span> Away from the desk</h3>
+<p>Autopilot already runs without you: an issue goes in, a team builds it, and the loop stops when something genuinely needs a person. The gap is that the person has to be at the terminal - a folder-trust question, or a permission the team was not given, will sit there until you are back at your machine, and an overnight run that stalls at midnight has wasted the night. The picture is a phone: the run says in one line what it is stuck on, you read the diff that worries you, you answer the one question, and it carries on. It is not a dashboard to watch, because watching a build from a phone is nobody's idea of a good evening - it is one notification and one answer. This is also why the page you are reading has to work at 320 pixels wide: a site that argues for unblocking a build from a phone and then needs a desk to read is arguing against itself.</p>
+
+<h3><span class="rung">rung five</span> Something people pay for</h3>
+<p>Some of this may become a paid product one day, and that sentence is as far as it goes. There is no price here, no tier, no date and no business model, because kendle does not have one yet and inventing one would be the same kind of lie as inventing a user count. What can be said honestly is the shape of it: a hub that holds a team's work is something somebody has to run and pay for, and agents that work while nobody is watching spend money the whole time they do it. kendle is MIT today, and the terminal console is not the part anyone would charge for. If that changes it will be written here in the same plain words, after it is true rather than before.</p>
+
+<p class="notice"><strong>What would have to be true first.</strong> None of this is a drawing problem, and the same three walls stand in front of all five. Shared state is the first: the console is a tmux server and a state folder on one machine, and every future above needs a version of that truth two people can open at once without one of them winning a race. Trust is the second - once a team shares one place, who may start a session, whose issues an unattended loop will act on and what an agent is allowed to run stop being settings on your own laptop and become somebody's responsibility; autopilot's list of allowed authors and allowed commands is a first sketch of that and nothing more. Cost is the third: sessions that run unattended spend tokens for as long as they run, and a hub is only worth having if the bill is predictable before the month ends rather than after. Those three are also the honest answer to the paid question, because nobody should charge for something until it holds state safely, says no to the right people, and costs what you expected it to.</p>
+</section>
+
+<section id="open" class="panel">
+<h2><span class="tag" aria-hidden="true">still open</span> What we do not know yet</h2>
+<p>These have no answer here, and naming them is cheaper than pretending otherwise. They are questions, not an order of work.</p>
+<ul class="questions">
+<li>Where does the shared state live, and is it something somebody else has to run?</li>
+<li>Once a team shares one place, where is the trust boundary - who may start a session, whose issues an unattended loop acts on, and what an agent is allowed to run?</li>
+<li>How does the cost of agents that work while nobody is watching stay predictable before the bill arrives rather than after it?</li>
+<li>Is this an open-source tool with something hosted beside it, or something else entirely?</li>
+<li>Which rung is worth building first, and what would tell us we had picked the wrong one?</li>
+</ul>
+</section>
+
+<section id="contact" class="panel">
+<h2><span class="tag" aria-hidden="true">contact</span> Getting in touch</h2>
+<!-- slot: who - who is behind this, named, and what they have built before -->
+<p>A bug, or a question about the tool itself, goes to <a href="https://github.com/vuhah/kendle">the repository's issues</a>, where it stays public and the answer reaches whoever asks next.</p>
+<p>Anything else - including the things this page has deliberately left unsaid - goes to the address below.</p>
+<!-- slot: raising - what is being raised and what it would be spent on -->
+<p><a class="cta" href="mailto:admin@kendle.fit">admin@kendle.fit</a></p>
+</section>
+
+</main>
+
+<footer class="band">
+<div class="wrap">
+<p><a class="cta" href="https://github.com/vuhah/kendle">github.com/vuhah/kendle</a></p>
+<p class="fine">MIT licensed. Built with Python's standard library and a tmux config.</p>
+</div>
+</footer>
+
+</body>
+</html>

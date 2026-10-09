@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found - kendle</title>
+<!-- Pages serves this page for any unknown path, including deep ones, where a relative stylesheet
+     would resolve against the wrong folder. So the few rules it needs live here, with the tokens
+     copied by hand from style.css - if those change, change these in the same commit or this page
+     starts looking like a different site. -->
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --text: #1f2328;
+  --link: #0a4d9e;
+  --rule-strong: #7b848e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --text: #e6edf3;
+    --link: #7cb7ff;
+    --rule-strong: #68737f;
+  }
+}
+body {
+  margin: 0;
+  padding: 3rem 1rem;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 100%;
+  line-height: 1.65;
+}
+main {
+  max-width: 36rem;
+  margin: 0 auto;
+  border: 1px solid var(--rule-strong);
+  padding: 2rem 1rem;
+}
+h1 {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 2rem;
+  margin: 0 0 1rem;
+}
+p { max-width: 68ch; }
+a { color: var(--link); }
+/* Only the standalone link home is a tap target; an inline link in a sentence would not want this. */
+.home {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 1rem 1.5rem;
+  border: 1px solid var(--link);
+  text-decoration: none;
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Not found</h1>
+<p>There is nothing at this address. The site is one page.</p>
+<p><a class="home" href="/">Back to the front page</a></p>
+</main>
+</body>
+</html>
