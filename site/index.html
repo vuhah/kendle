@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>kendle - one terminal screen for a team of agents</title>
-<meta name="description" content="kendle runs many Claude Code sessions over one git repo from one screen: a worktree per piece of work, a team of agents, a gate before any push.">
+<title>kendle - run a team of coding agents</title>
+<meta name="description" content="kendle runs a team of coding agents over one git repository: a worktree each, every state on one screen, and a gate before anything reaches main. MIT, out now.">
 <link rel="canonical" href="https://kendle.fit/">
-<meta property="og:title" content="kendle - one terminal screen for a team of agents">
-<meta property="og:description" content="Many Claude Code sessions over one git repository, from a single terminal screen: a worktree per piece of work, a team of agents, and a gate before anything is pushed.">
+<meta property="og:title" content="kendle - run a team of coding agents">
+<meta property="og:description" content="A team of coding agents over one git repository: a worktree each, every state on one screen, and a gate before anything reaches main. The terminal console is out now, MIT.">
 <meta property="og:url" content="https://kendle.fit/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="kendle">
@@ -26,7 +26,7 @@
 <a href="#today">today</a>
 <a href="#install">install</a>
 <a href="#why-now">why now</a>
-<a href="#vision">vision</a>
+<a href="#vision">roadmap</a>
 <a href="#open">open</a>
 </nav>
 <a class="cta cta-sm" href="https://github.com/vuhah/kendle">GitHub</a>
@@ -38,9 +38,9 @@
 <section class="hero">
 <div class="wrap">
 
-<p class="eyebrow eyebrow-hero">MIT &middot; Python standard library &middot; macOS and Linux</p>
-<h1>One agent is easy.<br><span class="h1-b">Five is a different job.</span></h1>
-<p class="lead hero-lead">One terminal screen for all of them: a git worktree each, a team of roles that builds and checks it, a gate before anything reaches main.</p>
+<p class="eyebrow eyebrow-hero">Out now &middot; MIT &middot; macOS and Linux</p>
+<h1>A team of agents.<br><span class="h1-b">One place to run them.</span></h1>
+<p class="lead hero-lead">Every agent gets its own git worktree. All of them sit on one screen, each showing the state it is in. Nothing reaches main without passing the gate.</p>
 <p class="ctas"><a class="cta cta-go" href="https://github.com/vuhah/kendle">Get it on GitHub</a> <a class="cta" href="#contact">Get in touch</a></p>
 
 <div class="console-frame">
@@ -90,7 +90,7 @@
 </div>
 </div>
 </div>
-<p class="caption">Sessions grouped by what they are doing; the one you picked in the middle.</p>
+<p class="caption">The console, shipped: every session grouped by what it is doing, the one you picked in the middle.</p>
 
 </div>
 </section>
@@ -98,7 +98,7 @@
 <section id="problem" class="slab">
 <div class="wrap">
 <p class="eyebrow" aria-hidden="true">problem</p>
-<h2>Where the terminal stops helping</h2>
+<h2>One agent is easy. Five is a different job.</h2>
 <p class="lead">Five agents, one checkout, no way to see any of it.</p>
 <ul class="cards three">
 <li><strong>Which one is working?</strong> You cannot tell working from idle from waiting an hour on you.</li>
@@ -111,10 +111,10 @@
 
 <section id="today" class="slab slab-alt">
 <div class="wrap">
-<p class="eyebrow" aria-hidden="true">today</p>
-<h2>What it does today</h2>
-<p class="lead">Built, public, and checkable in an afternoon.</p>
-<p>MIT, Python's standard library and a tmux config, so there is nothing to audit. Status: young &mdash; a month in one team's monorepo. <a href="https://github.com/vuhah/kendle">Go and look</a>.</p>
+<p class="eyebrow" aria-hidden="true">shipped</p>
+<h2>The console is out, and you can clone it now</h2>
+<p class="lead">A working tool, not a mockup &mdash; public, MIT, checkable in an afternoon.</p>
+<p>Python's standard library and a tmux config, so there is nothing to audit. It ran for a month inside one team's monorepo before it was lifted out. <a href="https://github.com/vuhah/kendle">Go and look</a>.</p>
 <!-- slot: stage - where the project or the company actually is, in plain words -->
 
 <h3>A team per piece of work</h3>
@@ -227,21 +227,20 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 
 <section id="vision" class="slab slab-alt">
 <div class="wrap">
-<p class="eyebrow" aria-hidden="true">where it's going</p>
-<h2>A console is the first rung, not the product</h2>
-<p class="notice"><strong>Everything below is a concept.</strong> Drawn, not shipped, and marked on its face. No dates, no roadmap.</p>
-<p class="lead">A kendle session is four things: a worktree, a state, a gate, a log. Not one of them needs a terminal.</p>
+<p class="eyebrow" aria-hidden="true">roadmap</p>
+<h2>The rest of the system</h2>
+<p class="lead">A kendle session is four things: a worktree, a state, a gate, a log. Not one of them needs a terminal &mdash; which is why the console is the first release and not the shape of the product.</p>
 
-<figure class="climb-fig">
-<ol class="climb">
-<li class="is-now"><span class="tread"><span class="tread-n">now</span></span> <span class="climb-name">one terminal</span></li>
-<li><span class="tread"><span class="tread-n">1</span></span> <span class="climb-name">the hub</span></li>
-<li><span class="tread"><span class="tread-n">2</span></span> <span class="climb-name">a new engineer</span></li>
-<li><span class="tread"><span class="tread-n">3</span></span> <span class="climb-name">an assistant</span></li>
-<li><span class="tread"><span class="tread-n">4</span></span> <span class="climb-name">your phone</span></li>
-<li><span class="tread"><span class="tread-n">5</span></span> <span class="climb-name">a product</span></li>
+<figure class="track-fig">
+<ol class="track">
+<li class="is-ship lead-stop"><span class="stop-tag">shipped</span> <span class="stop-dot"></span> <span class="stop-name">the console</span></li>
+<li class="is-next lead-stop"><span class="stop-tag">next</span> <span class="stop-dot"></span> <span class="stop-name">the hub</span></li>
+<li class="is-next"><span class="stop-dot"></span> <span class="stop-name">a new engineer</span></li>
+<li class="is-after lead-stop"><span class="stop-tag">after</span> <span class="stop-dot"></span> <span class="stop-name">an assistant</span></li>
+<li class="is-after"><span class="stop-dot"></span> <span class="stop-name">your phone</span></li>
+<li class="is-after"><span class="stop-dot"></span> <span class="stop-name">a product</span></li>
 </ol>
-<figcaption>Step one you can clone today. The five above it are concepts.</figcaption>
+<figcaption>One system, built in order. The first stop is on GitHub today.</figcaption>
 </figure>
 
 <ol class="ladder">
@@ -252,8 +251,8 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <p>One tmux server, one laptop, one person's sidebar: right while the work is yours, wrong the moment anyone else needs to see it. Move it somewhere a team opens and the same five states answer a bigger question: <em>what is this team running, and what is waiting on a human?</em> Nothing in the tool resists it.</p>
 </div>
 <figure class="mock">
-<p class="concept">Concept <span class="concept-x">not built</span></p>
-<div class="shot" role="img" aria-label="Concept, not built: a kendle hub - every repository a team owns down one side, and three columns of features across all of them: the ones waiting on a human answer, the ones running, and one through the gate waiting to be pushed.">
+<p class="soon"><span class="soon-dot" aria-hidden="true"></span>Coming soon</p>
+<div class="shot" role="img" aria-label="Coming soon: a kendle hub - every repository a team owns down one side, and three columns of features across all of them: the ones waiting on a human answer, the ones running, and one through the gate waiting to be pushed.">
 <div class="hub-bar">
 <span class="hub-mark">kendle hub</span>
 <span class="hub-tabs"><span class="hub-tab is-on">board</span><span class="hub-tab">gates</span><span class="hub-tab">history</span></span>
@@ -323,9 +322,32 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 
 <li>
 <h3><span class="rung" aria-hidden="true">2</span> A new engineer on the team</h3>
+<div class="vrow">
 <div class="vsay">
-<p>It is Monday. At the top of that board is a feature nobody started on Friday: <em>checkout double-charges on retry</em>, picked up overnight, now on one question. It is the question a new hire asks &mdash; <em>the two retry paths disagree about what counts as the same attempt; which is the rule?</em> &mdash; and you answer it in a sentence. By the time you look again: a spec, a plan, one commit through the gate.</p>
+<p>It is Monday. At the top of that board is a feature nobody started on Friday: <em>checkout double-charges on retry</em>, picked up overnight, now on one question. It is the question a new hire asks, and you answer it in a sentence. By the time you look again: a spec, a plan, one commit through the gate.</p>
 <p>What compounds is not the model, but what that answer taught it about this repository.</p>
+</div>
+<figure class="mock mock-thread">
+<p class="soon"><span class="soon-dot" aria-hidden="true"></span>Coming soon</p>
+<div class="shot" role="img" aria-label="Coming soon: the Monday thread on one feature - the agent asks which of two disagreeing retry paths defines the same attempt, you answer in one sentence, it writes the rule into the repository's conventions for the next session, and under that a spec, a plan, two commits and a clean gate.">
+<div class="hub-bar">
+<span class="hub-mark">checkout-retry</span>
+<span class="hub-tabs"><span class="hub-tab is-on">thread</span><span class="hub-tab">spec</span><span class="hub-tab">diff</span></span>
+<span class="hub-chip">overnight</span>
+</div>
+<div class="chat">
+<div class="msg bot">
+<p>The two retry paths disagree about what counts as the same attempt. Which is the rule?</p>
+</div>
+<p class="msg you">the idempotency key &mdash; the request id is per attempt</p>
+<div class="msg bot">
+<p><span class="learn">learned</span> In this repository the idempotency key is the identity of a retry. Written to the conventions every session reads from now on.</p>
+<p class="chat-run"><span class="dot active"></span> spec &middot; plan &middot; two commits &middot; gate clean</p>
+</div>
+</div>
+</div>
+<figcaption>The question a new hire asks, asked once and remembered.</figcaption>
+</figure>
 </div>
 </li>
 
@@ -336,8 +358,8 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <p>The console is keys today: <code>a</code> to ask, <code>g</code> to review, <code>K</code> to stop. Quick in your fingers, a wall before that. Saying it instead is nearer than it sounds: every one of those keys is already a command a script can drive.</p>
 </div>
 <figure class="mock mock-chat">
-<p class="concept">Concept <span class="concept-x">not built</span></p>
-<div class="shot" role="img" aria-label="Concept, not built: an assistant over the hub - someone asks in plain words why a feature is still open, kendle answers with the reviewer's blocker and offers three next moves, and the following sentence starts the fix and sets the condition for pushing it.">
+<p class="soon"><span class="soon-dot" aria-hidden="true"></span>Coming soon</p>
+<div class="shot" role="img" aria-label="Coming soon: an assistant over the hub - someone asks in plain words why a feature is still open, kendle answers with the reviewer's blocker and offers three next moves, and the following sentence starts the fix and sets the condition for pushing it.">
 <div class="hub-bar">
 <span class="hub-mark">ask kendle</span>
 <span class="hub-tabs"><span class="hub-tab">shop</span><span class="hub-tab">api</span><span class="hub-tab">web</span></span>
@@ -369,8 +391,8 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <p>Autopilot already runs without you, but the person it stops for has to be at a terminal: a run that blocks at midnight wastes the night. Answering from a bus stop is a small feature and a large change. It is the difference between agents that work while you sleep and agents that wait until you wake up.</p>
 </div>
 <figure class="mock mock-phone">
-<p class="concept">Concept <span class="concept-x">not built</span></p>
-<div class="shot shot-phone" role="img" aria-label="Concept, not built: kendle on a phone just before midnight - one blocked feature showing the question its agent is stuck on with two one-tap answers, and under it a feature through the gate offering push or hold.">
+<p class="soon"><span class="soon-dot" aria-hidden="true"></span>Coming soon</p>
+<div class="shot shot-phone" role="img" aria-label="Coming soon: kendle on a phone just before midnight - one blocked feature showing the question its agent is stuck on with two one-tap answers, and under it a feature through the gate offering push or hold.">
 <p class="ph-status"><span>23:58</span><span class="ph-bars"><i></i><i></i><i></i></span></p>
 <p class="ph-head"><span class="ph-mark">kendle</span><span class="ph-chip">2 waiting</span></p>
 <div class="ph-card">
@@ -393,26 +415,32 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <li>
 <h3><span class="rung" aria-hidden="true">5</span> Something people pay for</h3>
 <div class="vsay">
-<p>The hub is the first rung that costs money to run and the first worth paying for. No price, no tier, no date: inventing one would be the same lie as inventing a user count. The tool is MIT and stays that way.</p>
+<p>The hub is the first stop that costs money to run, and the first worth paying for. The tool itself is MIT and stays that way.</p>
 </div>
 </li>
 </ol>
 
-<p class="notice"><strong>What would have to be true first.</strong> Three walls, and not one of them is a model problem. <strong>Shared state</strong>: one server two people can open, where today there is a socket on a laptop. <strong>Trust</strong>: who may start a session, and what an agent may run unwatched. <strong>Cost</strong>: unattended agents spend tokens every minute they run.</p>
+<p class="block-h">What we're solving next</p>
+<p class="lead">Three problems stand between the console and the hub. Not one of them is a model problem.</p>
+<ul class="cards three">
+<li><strong>Shared state</strong> One server a team opens, where today there is a socket on one laptop.</li>
+<li><strong>Trust</strong> Who may start a session, and what an agent may run unwatched.</li>
+<li><strong>Cost</strong> Unattended agents spend tokens every minute they run.</li>
+</ul>
 </div>
 </section>
 
 <section id="open" class="slab">
 <div class="wrap">
-<p class="eyebrow" aria-hidden="true">still open</p>
-<h2>What we do not know yet</h2>
-<p class="lead">Questions, not an order of work.</p>
+<p class="eyebrow" aria-hidden="true">open questions</p>
+<h2>The questions we are answering</h2>
+<p class="lead">Named, because the answers decide the shape of the product.</p>
 <ul class="questions">
-<li>Where does the shared state live, and who runs it?</li>
-<li>Who may start a session, and what may an agent run unwatched?</li>
-<li>How does the cost of unattended agents stay predictable?</li>
+<li>Who runs the shared server &mdash; the team itself, or someone else?</li>
+<li>What does a team need to see that one person at a terminal does not?</li>
+<li>How is an agent's spend made predictable before it runs, not after?</li>
 <li>An open-source tool with something hosted beside it, or something else?</li>
-<li>Which rung first, and what would tell us we picked wrong?</li>
+<li>Which stop first, and what would tell us we picked wrong?</li>
 </ul>
 </div>
 </section>
@@ -436,7 +464,7 @@ export PATH="$HOME/kendle/bin:$PATH"</code></pre>
 <div class="wrap foot-in">
 <div>
 <p class="mark mark-sm">kendle</p>
-<p class="gloss">a litter of kittens &mdash; here, a small team of agents that work together</p>
+<p class="gloss">a litter of kittens &mdash; here, a team of agents that work together</p>
 </div>
 <p class="fine"><a href="https://github.com/vuhah/kendle">github.com/vuhah/kendle</a><br>MIT licensed. Python's standard library and a tmux config.</p>
 </div>
